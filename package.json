@@ -1,0 +1,35 @@
+{
+  "name": "gwt",
+  "version": "0.1.0",
+  "description": "Fast git worktree manager with bare repository workflow",
+  "type": "module",
+  "bin": {
+    "gwt": "./dist/gwt"
+  },
+  "scripts": {
+    "dev": "bun run src/cli.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "oxlint src",
+    "lint:fix": "oxlint src --fix",
+    "build": "bun build ./src/cli.ts --compile --minify --outfile=dist/gwt",
+    "build:all": "bun run build:linux-x64 && bun run build:linux-arm64 && bun run build:darwin-x64 && bun run build:darwin-arm64 && bun run build:windows-x64",
+    "build:linux-x64": "bun build ./src/cli.ts --compile --minify --target=bun-linux-x64 --outfile=dist/gwt-linux-x64",
+    "build:linux-arm64": "bun build ./src/cli.ts --compile --minify --target=bun-linux-arm64 --outfile=dist/gwt-linux-arm64",
+    "build:darwin-x64": "bun build ./src/cli.ts --compile --minify --target=bun-darwin-x64 --outfile=dist/gwt-darwin-x64",
+    "build:darwin-arm64": "bun build ./src/cli.ts --compile --minify --target=bun-darwin-arm64 --outfile=dist/gwt-darwin-arm64",
+    "build:windows-x64": "bun build ./src/cli.ts --compile --minify --target=bun-windows-x64 --outfile=dist/gwt-windows-x64.exe"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@vitest/coverage-v8": "^4.0.18",
+    "oxlint": "^1.43.0",
+    "typescript": "^5",
+    "vitest": "^4.0.18"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.0.0",
+    "citty": "^0.2.0"
+  }
+}
