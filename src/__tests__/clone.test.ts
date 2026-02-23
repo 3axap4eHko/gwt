@@ -8,7 +8,7 @@ vi.mock("fs", () => ({
 
 vi.mock("../core/repo", () => ({
   getCurrentVersion: vi.fn(() => "0.1.0"),
-  detectDefaultBranch: vi.fn(() => Promise.resolve("main")),
+  detectDefaultBranch: vi.fn(() => Promise.resolve("master")),
 }));
 
 import { existsSync, mkdirSync } from "fs";
@@ -43,8 +43,7 @@ describe("clone", () => {
   test("exits with error when directory already exists", async () => {
     mockExistsSync.mockReturnValue(true);
 
-    await expect(clone("https://github.com/test/repo.git")).rejects.toThrow("process.exit");
-    expect(consoleErrorSpy).toHaveBeenCalledWith("Error: Directory 'repo' already exists");
+    await expect(clone("https://github.com/test/repo.git")).rejects.toThrow("Error: Directory 'repo' already exists");
   });
 
   test("extracts repo name from URL", async () => {
@@ -122,8 +121,7 @@ describe("clone", () => {
       }),
     } as any);
 
-    await expect(clone("https://github.com/test/repo.git")).rejects.toThrow("process.exit");
-    expect(consoleErrorSpy).toHaveBeenCalledWith("Error: Failed to clone repository");
+    await expect(clone("https://github.com/test/repo.git")).rejects.toThrow("Error: Failed to clone repository");
   });
 
   test("exits on fetch config failure", async () => {
@@ -143,8 +141,7 @@ describe("clone", () => {
       }),
     } as any);
 
-    await expect(clone("https://github.com/test/repo.git")).rejects.toThrow("process.exit");
-    expect(consoleErrorSpy).toHaveBeenCalledWith("Error: Failed to configure fetch refspec");
+    await expect(clone("https://github.com/test/repo.git")).rejects.toThrow("Error: Failed to configure fetch refspec");
   });
 
   test("exits on fetch failure", async () => {
@@ -164,8 +161,7 @@ describe("clone", () => {
       }),
     } as any);
 
-    await expect(clone("https://github.com/test/repo.git")).rejects.toThrow("process.exit");
-    expect(consoleErrorSpy).toHaveBeenCalledWith("Error: Failed to fetch branches");
+    await expect(clone("https://github.com/test/repo.git")).rejects.toThrow("Error: Failed to fetch branches");
   });
 
   test("exits on worktree creation failure", async () => {
@@ -185,8 +181,7 @@ describe("clone", () => {
       }),
     } as any);
 
-    await expect(clone("https://github.com/test/repo.git")).rejects.toThrow("process.exit");
-    expect(consoleErrorSpy).toHaveBeenCalledWith("Error: Failed to create worktree");
+    await expect(clone("https://github.com/test/repo.git")).rejects.toThrow("Error: Failed to create worktree");
   });
 
   test("completes successfully", async () => {
@@ -207,7 +202,7 @@ describe("clone", () => {
     await clone("https://github.com/test/repo.git");
 
     expect(consoleSpy).toHaveBeenCalledWith("Done! Repository cloned to repo/");
-    expect(consoleSpy).toHaveBeenCalledWith("  cd repo/main");
+    expect(consoleSpy).toHaveBeenCalledWith("  cd repo/master");
   });
 
   test("writes .git file and AGENTS.md", async () => {

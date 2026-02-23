@@ -2,7 +2,8 @@ import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("citty", () => ({
   defineCommand: vi.fn((config) => config),
-  runMain: vi.fn(),
+  runCommand: vi.fn(),
+  showUsage: vi.fn(),
 }));
 
 vi.mock("../commands/clone", () => ({ clone: vi.fn(() => Promise.resolve()) }));
@@ -11,6 +12,12 @@ vi.mock("../commands/list", () => ({ list: vi.fn(() => Promise.resolve()) }));
 vi.mock("../commands/rm", () => ({ rm: vi.fn(() => Promise.resolve()) }));
 vi.mock("../commands/init", () => ({ init: vi.fn(() => Promise.resolve()) }));
 vi.mock("../commands/cd", () => ({ cd: vi.fn(() => Promise.resolve()) }));
+vi.mock("../commands/edit", () => ({ edit: vi.fn(() => Promise.resolve()) }));
+vi.mock("../commands/run", () => ({ run: vi.fn(() => Promise.resolve()) }));
+vi.mock("../commands/lock", () => ({ lock: vi.fn(() => Promise.resolve()), unlock: vi.fn(() => Promise.resolve()), move: vi.fn(() => Promise.resolve()) }));
+vi.mock("../commands/pr", () => ({ pr: vi.fn(() => Promise.resolve()) }));
+vi.mock("../commands/mr", () => ({ mr: vi.fn(() => Promise.resolve()) }));
+vi.mock("../commands/sync", () => ({ sync: vi.fn(() => Promise.resolve()) }));
 vi.mock("../commands/shell", () => ({ shell: vi.fn() }));
 
 describe("cli", () => {
@@ -33,26 +40,15 @@ describe("cli", () => {
     consoleErrorSpy.mockRestore();
   });
 
-  test("extracts --exec arguments from argv", async () => {
-    process.argv = ["node", "gwt", "cd", "main", "--exec", "echo", "hello"];
-
-    const { defineCommand, runMain } = await import("citty");
+  test("run command does not mutate process.argv", async () => {
+    process.argv = ["node", "gwt", "run", "npm", "test"];
 
     await import("../cli");
 
-    expect(runMain).toHaveBeenCalled();
-    expect(process.argv).toEqual(["node", "gwt", "cd", "main"]);
+    expect(process.argv).toEqual(["node", "gwt", "run", "npm", "test"]);
   });
 
-  test("extracts -x short flag arguments", async () => {
-    process.argv = ["node", "gwt", "cd", "-x", "ls", "-la"];
-
-    await import("../cli");
-
-    expect(process.argv).toEqual(["node", "gwt", "cd"]);
-  });
-
-  test("handles no --exec flag", async () => {
+  test("non-run subcommand argv is unchanged", async () => {
     process.argv = ["node", "gwt", "list"];
 
     await import("../cli");
@@ -60,12 +56,12 @@ describe("cli", () => {
     expect(process.argv).toEqual(["node", "gwt", "list"]);
   });
 
-  test("handles empty --exec arguments", async () => {
-    process.argv = ["node", "gwt", "cd", "--exec"];
+  test("move with 'run' as positional does not trigger run handling", async () => {
+    process.argv = ["node", "gwt", "move", "run", "/tmp/path"];
 
     await import("../cli");
 
-    expect(process.argv).toEqual(["node", "gwt", "cd"]);
+    expect(process.argv).toEqual(["node", "gwt", "move", "run", "/tmp/path"]);
   });
 
   test("defines all subcommands", async () => {
@@ -87,6 +83,14 @@ describe("cli", () => {
     expect(commandNames).toContain("rm");
     expect(commandNames).toContain("list");
     expect(commandNames).toContain("cd");
+    expect(commandNames).toContain("edit");
+    expect(commandNames).toContain("run");
+    expect(commandNames).toContain("lock");
+    expect(commandNames).toContain("unlock");
+    expect(commandNames).toContain("move");
+    expect(commandNames).toContain("pr");
+    expect(commandNames).toContain("mr");
+    expect(commandNames).toContain("sync");
     expect(commandNames).toContain("shell");
     expect(commandNames).toContain("gwt");
   });
@@ -142,7 +146,7 @@ describe("cli", () => {
     expect(rm).toHaveBeenCalledWith("feature", { force: true });
   });
 
-  test("list command runs", async () => {
+  test("list command runs with options", async () => {
     process.argv = ["node", "gwt", "list"];
 
     const { defineCommand } = await import("citty");
@@ -154,9 +158,9 @@ describe("cli", () => {
     const listConfig = mockDefineCommand.mock.calls.find(
       (call) => call[0].meta?.name === "list"
     )?.[0];
-    await listConfig?.run?.({ args: {} });
+    await listConfig?.run?.({ args: { json: true, names: false } });
 
-    expect(list).toHaveBeenCalled();
+    expect(list).toHaveBeenCalledWith({ json: true, names: false });
   });
 
   test("init command runs", async () => {
@@ -193,7 +197,7 @@ describe("cli", () => {
     expect(shell).toHaveBeenCalledWith("bash");
   });
 
-  test("cd command is defined with correct args", async () => {
+  test("cd command is defined with only name arg", async () => {
     process.argv = ["node", "gwt"];
 
     const { defineCommand } = await import("citty");
@@ -206,9 +210,9 @@ describe("cli", () => {
     )?.[0];
 
     expect(cdConfig?.args?.name?.type).toBe("positional");
-    expect(cdConfig?.args?.open?.type).toBe("boolean");
-    expect(cdConfig?.args?.edit?.type).toBe("boolean");
-    expect(cdConfig?.args?.exec?.type).toBe("boolean");
+    expect(cdConfig?.args?.open).toBeUndefined();
+    expect(cdConfig?.args?.edit).toBeUndefined();
+    expect(cdConfig?.args?.exec).toBeUndefined();
   });
 
   test("cd command calls cd function", async () => {
@@ -224,30 +228,79 @@ describe("cli", () => {
       (call) => call[0].meta?.name === "cd"
     )?.[0];
 
-    await cdConfig?.run?.({ args: { name: "feature", open: false, edit: false, exec: false } });
+    await cdConfig?.run?.({ args: { name: "feature" } });
 
-    expect(cd).toHaveBeenCalled();
+    expect(cd).toHaveBeenCalledWith("feature");
   });
 
-  test("cd command errors when multiple options provided with exec", async () => {
-    process.argv = ["node", "gwt", "cd", "--exec", "ls"];
+  test("edit command is defined with name arg", async () => {
+    process.argv = ["node", "gwt"];
 
     const { defineCommand } = await import("citty");
     const mockDefineCommand = vi.mocked(defineCommand);
 
     await import("../cli");
 
-    const cdConfig = mockDefineCommand.mock.calls.find(
-      (call) => call[0].meta?.name === "cd"
+    const editConfig = mockDefineCommand.mock.calls.find(
+      (call) => call[0].meta?.name === "edit"
     )?.[0];
 
-    expect(() =>
-      cdConfig?.run?.({ args: { name: "main", open: true, edit: false, exec: false } })
-    ).toThrow("process.exit");
-
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
-      "Error: --open, --edit, and --exec are mutually exclusive"
-    );
+    expect(editConfig?.args?.name?.type).toBe("positional");
+    expect(editConfig?.args?.name?.required).toBe(false);
   });
 
+  test("edit command calls edit function", async () => {
+    process.argv = ["node", "gwt", "edit"];
+
+    const { defineCommand } = await import("citty");
+    const mockDefineCommand = vi.mocked(defineCommand);
+    const { edit } = await import("../commands/edit");
+
+    await import("../cli");
+
+    const editConfig = mockDefineCommand.mock.calls.find(
+      (call) => call[0].meta?.name === "edit"
+    )?.[0];
+
+    await editConfig?.run?.({ args: { name: "master", add: false } });
+
+    expect(edit).toHaveBeenCalledWith("master", { add: false });
+  });
+
+  test("run command passes args._ and args.worktree to run()", async () => {
+    process.argv = ["node", "gwt", "run"];
+
+    const { defineCommand } = await import("citty");
+    const mockDefineCommand = vi.mocked(defineCommand);
+    const { run } = await import("../commands/run");
+
+    await import("../cli");
+
+    const runConfig = mockDefineCommand.mock.calls.find(
+      (call) => call[0].meta?.name === "run"
+    )?.[0];
+
+    await runConfig?.run?.({ args: { _: ["npm", "test"], worktree: undefined } });
+
+    expect(run).toHaveBeenCalledWith(["npm", "test"], undefined);
+  });
+
+  test("run command passes -w worktree from args", async () => {
+    process.argv = ["node", "gwt", "run"];
+
+    const { defineCommand } = await import("citty");
+    const mockDefineCommand = vi.mocked(defineCommand);
+    const { run } = await import("../commands/run");
+    vi.mocked(run).mockClear();
+
+    await import("../cli");
+
+    const runConfig = mockDefineCommand.mock.calls
+      .filter((call) => call[0].meta?.name === "run")
+      .at(-1)?.[0];
+
+    await runConfig?.run?.({ args: { _: ["echo", "hi"], worktree: "master" } });
+
+    expect(run).toHaveBeenLastCalledWith(["echo", "hi"], "master");
+  });
 });

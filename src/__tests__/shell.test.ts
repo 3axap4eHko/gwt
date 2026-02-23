@@ -14,26 +14,60 @@ describe("shell", () => {
     process.env.SHELL = originalEnv;
   });
 
-  test("outputs bash script when shellType is bash", () => {
+  test("outputs bash script with wrapper and completions", () => {
     shell("bash");
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("gwt()"));
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('[[ "$1" == "cd" ]]'));
+    const output = consoleSpy.mock.calls[0][0];
+    expect(output).toContain("gwt()");
+    expect(output).toContain('"cd" || "$1" == "edit"');
+    expect(output).toContain("_gwt_completions");
+    expect(output).toContain("complete -F _gwt_completions gwt");
   });
 
-  test("outputs zsh script when shellType is zsh", () => {
+  test("outputs zsh script with compdef", () => {
     shell("zsh");
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("gwt()"));
+    const output = consoleSpy.mock.calls[0][0];
+    expect(output).toContain("gwt()");
+    expect(output).toContain("_gwt()");
+    expect(output).toContain("compdef _gwt gwt");
+    expect(output).toContain("_describe");
   });
 
-  test("outputs fish script when shellType is fish", () => {
+  test("outputs fish script with complete commands", () => {
     shell("fish");
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("function gwt"));
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('test "$argv[1]" = "cd"'));
+    const output = consoleSpy.mock.calls[0][0];
+    expect(output).toContain("function gwt");
+    expect(output).toContain('"cd" -o "$argv[1]" = "edit"');
+    expect(output).toContain("complete -c gwt -n '__fish_use_subcommand'");
+    expect(output).toContain("__fish_seen_subcommand_from");
   });
 
   test("outputs bash script for unknown shell type", () => {
     shell("unknown");
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("gwt()"));
+    const output = consoleSpy.mock.calls[0][0];
+    expect(output).toContain("gwt()");
+    expect(output).toContain("_gwt_completions");
+  });
+
+  test("bash completions include subcommands", () => {
+    shell("bash");
+    const output = consoleSpy.mock.calls[0][0];
+    expect(output).toContain("clone init add rm list");
+    expect(output).toContain("sync pr mr shell");
+  });
+
+  test("bash completions complete worktree names for relevant commands", () => {
+    shell("bash");
+    const output = consoleSpy.mock.calls[0][0];
+    expect(output).toContain("gwt list --names");
+    expect(output).toContain("cd|edit|rm|sync|pr|mr|lock|unlock|move|run");
+  });
+
+  test("fish completions list all subcommands", () => {
+    shell("fish");
+    const output = consoleSpy.mock.calls[0][0];
+    for (const cmd of ["clone", "init", "add", "rm", "list", "cd", "edit", "run", "sync", "pr", "shell"]) {
+      expect(output).toContain(`-a ${cmd}`);
+    }
   });
 
   test("detects fish from SHELL env", () => {
@@ -45,13 +79,13 @@ describe("shell", () => {
   test("detects zsh from SHELL env", () => {
     process.env.SHELL = "/bin/zsh";
     shell();
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("gwt()"));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("compdef _gwt gwt"));
   });
 
   test("detects bash from SHELL env", () => {
     process.env.SHELL = "/bin/bash";
     shell();
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("gwt()"));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("_gwt_completions"));
   });
 
   test("defaults to bash when SHELL is empty", () => {

@@ -44,16 +44,14 @@ describe("rm", () => {
   test("exits with error for invalid worktree name", async () => {
     mockIsValidWorktreeName.mockReturnValue(false);
 
-    await expect(rm("../invalid")).rejects.toThrow("process.exit");
-    expect(consoleErrorSpy).toHaveBeenCalledWith("Error: Invalid worktree name");
+    await expect(rm("../invalid")).rejects.toThrow("Error: Invalid worktree name");
   });
 
   test("exits with error when not in gwt repo", async () => {
     mockIsValidWorktreeName.mockReturnValue(true);
     mockCheckGwtSetup.mockReturnValue({ ok: false, error: "Not in gwt repo" });
 
-    await expect(rm("feature")).rejects.toThrow("process.exit");
-    expect(consoleErrorSpy).toHaveBeenCalledWith("Error: Not in gwt repo");
+    await expect(rm("feature")).rejects.toThrow("Error: Not in gwt repo");
   });
 
   test("exits with error when worktree not found", async () => {
@@ -62,8 +60,7 @@ describe("rm", () => {
     mockFindGwtRoot.mockReturnValue("/project");
     mockExistsSync.mockReturnValue(false);
 
-    await expect(rm("feature")).rejects.toThrow("process.exit");
-    expect(consoleErrorSpy).toHaveBeenCalledWith("Error: Worktree 'feature' not found");
+    await expect(rm("feature")).rejects.toThrow("Error: Worktree 'feature' not found");
   });
 
   test("blocks removal of default branch without force", async () => {
@@ -71,7 +68,7 @@ describe("rm", () => {
     mockCheckGwtSetup.mockReturnValue({ ok: true });
     mockFindGwtRoot.mockReturnValue("/project");
     mockExistsSync.mockReturnValue(true);
-    mockGetDefaultBranch.mockReturnValue("main");
+    mockGetDefaultBranch.mockReturnValue("master");
 
     const { $ } = await import("bun");
     vi.mocked($).mockReturnValue({
@@ -79,13 +76,12 @@ describe("rm", () => {
         nothrow: () =>
           Promise.resolve({
             exitCode: 0,
-            stdout: { toString: () => "abc123 refs/heads/main" },
+            stdout: { toString: () => "" },
           }),
       }),
     } as any);
 
-    await expect(rm("main")).rejects.toThrow("process.exit");
-    expect(consoleErrorSpy).toHaveBeenCalledWith("Cannot remove worktree due to safety checks:\n");
+    await expect(rm("master")).rejects.toThrow("Cannot remove worktree due to safety checks");
   });
 
   test("blocks removal with uncommitted changes", async () => {
@@ -106,8 +102,7 @@ describe("rm", () => {
       }),
     } as any);
 
-    await expect(rm("feature")).rejects.toThrow("process.exit");
-    expect(consoleErrorSpy).toHaveBeenCalledWith("  - Uncommitted changes in worktree");
+    await expect(rm("feature")).rejects.toThrow("Uncommitted changes in worktree");
   });
 
   test("blocks removal when not pushed to remote", async () => {
@@ -124,13 +119,12 @@ describe("rm", () => {
         nothrow: () => {
           callCount++;
           if (callCount === 1) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "" } });
-          return Promise.resolve({ exitCode: 1, stdout: { toString: () => "" } });
+          return Promise.resolve({ exitCode: 0, stdout: { toString: () => "" } });
         },
       }),
     } as any);
 
-    await expect(rm("feature")).rejects.toThrow("process.exit");
-    expect(consoleErrorSpy).toHaveBeenCalledWith("  - Branch 'feature' not pushed to remote");
+    await expect(rm("feature")).rejects.toThrow("Branch 'feature' not pushed to remote");
   });
 
   test("blocks removal with unpushed commits", async () => {
@@ -146,17 +140,21 @@ describe("rm", () => {
       quiet: () => ({
         nothrow: () => {
           callCount++;
+          // 1: status --porcelain (clean)
           if (callCount === 1) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "" } });
-          if (callCount === 2) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "abc123" } });
+          // 2: for-each-ref upstream -> "origin"
+          if (callCount === 2) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "origin" } });
+          // 3: fetch
           if (callCount === 3) return Promise.resolve({ exitCode: 0 });
+          // 4: rev-list ahead -> 2
           if (callCount === 4) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "2" } });
+          // 5: rev-list behind -> 0
           return Promise.resolve({ exitCode: 0, stdout: { toString: () => "0" } });
         },
       }),
     } as any);
 
-    await expect(rm("feature")).rejects.toThrow("process.exit");
-    expect(consoleErrorSpy).toHaveBeenCalledWith("  - 2 unpushed commits");
+    await expect(rm("feature")).rejects.toThrow("2 unpushed commits");
   });
 
   test("blocks removal when behind remote", async () => {
@@ -172,20 +170,24 @@ describe("rm", () => {
       quiet: () => ({
         nothrow: () => {
           callCount++;
+          // 1: status --porcelain (clean)
           if (callCount === 1) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "" } });
-          if (callCount === 2) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "abc123" } });
+          // 2: for-each-ref upstream -> "origin"
+          if (callCount === 2) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "origin" } });
+          // 3: fetch
           if (callCount === 3) return Promise.resolve({ exitCode: 0 });
+          // 4: rev-list ahead -> 0
           if (callCount === 4) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "0" } });
+          // 5: rev-list behind -> 3
           return Promise.resolve({ exitCode: 0, stdout: { toString: () => "3" } });
         },
       }),
     } as any);
 
-    await expect(rm("feature")).rejects.toThrow("process.exit");
-    expect(consoleErrorSpy).toHaveBeenCalledWith("  - 3 commits behind remote");
+    await expect(rm("feature")).rejects.toThrow("3 commits behind remote");
   });
 
-  test("handles rev-list command failures gracefully", async () => {
+  test("blocks removal when rev-list commands fail", async () => {
     mockIsValidWorktreeName.mockReturnValue(true);
     mockCheckGwtSetup.mockReturnValue({ ok: true });
     mockFindGwtRoot.mockReturnValue("/project");
@@ -198,25 +200,23 @@ describe("rm", () => {
       quiet: () => ({
         nothrow: () => {
           callCount++;
-          // Call 1: git status --porcelain (no changes)
+          // 1: status --porcelain (clean)
           if (callCount === 1) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "" } });
-          // Call 2: git ls-remote --heads (branch exists on remote)
-          if (callCount === 2) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "abc123 refs/heads/feature" } });
-          // Call 3: git fetch
+          // 2: for-each-ref upstream -> "origin"
+          if (callCount === 2) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "origin" } });
+          // 3: fetch
           if (callCount === 3) return Promise.resolve({ exitCode: 0 });
-          // Call 4: rev-list ahead count (fails)
+          // 4: rev-list ahead -> fail
           if (callCount === 4) return Promise.resolve({ exitCode: 1, stdout: { toString: () => "" } });
-          // Call 5: rev-list behind count (fails)
-          if (callCount === 5) return Promise.resolve({ exitCode: 1, stdout: { toString: () => "" } });
-          // Call 6: git worktree remove
-          return Promise.resolve({ exitCode: 0, stdout: { toString: () => "" }, stderr: { toString: () => "" } });
+          // 5: rev-list behind -> fail
+          return Promise.resolve({ exitCode: 1, stdout: { toString: () => "" } });
         },
       }),
     } as any);
 
-    await rm("feature");
-
-    expect(consoleSpy).toHaveBeenCalledWith("Done! Worktree 'feature' removed");
+    const error = await rm("feature").catch((e: Error) => e);
+    expect(error.message).toContain("Failed to check unpushed commits");
+    expect(error.message).toContain("Failed to check commits behind remote");
   });
 
   test("removes worktree successfully", async () => {
@@ -249,7 +249,7 @@ describe("rm", () => {
     mockCheckGwtSetup.mockReturnValue({ ok: true });
     mockFindGwtRoot.mockReturnValue("/project");
     mockExistsSync.mockReturnValue(true);
-    mockGetDefaultBranch.mockReturnValue("main");
+    mockGetDefaultBranch.mockReturnValue("master");
 
     const { $ } = await import("bun");
     vi.mocked($).mockReturnValue({
@@ -273,7 +273,7 @@ describe("rm", () => {
     mockCheckGwtSetup.mockReturnValue({ ok: true });
     mockFindGwtRoot.mockReturnValue("/project");
     mockExistsSync.mockReturnValue(true);
-    mockGetDefaultBranch.mockReturnValue("main");
+    mockGetDefaultBranch.mockReturnValue("master");
 
     const { $ } = await import("bun");
     vi.mocked($).mockReturnValue({
@@ -287,9 +287,9 @@ describe("rm", () => {
       }),
     } as any);
 
-    await rm("main", { force: true });
+    await rm("master", { force: true });
 
-    expect(consoleSpy).not.toHaveBeenCalledWith("  Branch 'main' also deleted");
+    expect(consoleSpy).not.toHaveBeenCalledWith("  Branch 'master' also deleted");
   });
 
   test("retries with force when initial remove fails", async () => {
@@ -336,8 +336,7 @@ describe("rm", () => {
       }),
     } as any);
 
-    await expect(rm("feature", { force: true })).rejects.toThrow("process.exit");
-    expect(consoleErrorSpy).toHaveBeenCalledWith("Error: Failed to remove worktree");
+    await expect(rm("feature", { force: true })).rejects.toThrow("Error: Failed to remove worktree");
   });
 
   test("exits when remove fails without force", async () => {
@@ -353,24 +352,23 @@ describe("rm", () => {
       quiet: () => ({
         nothrow: () => {
           callCount++;
-          // Call 1: git status --porcelain (no changes)
+          // 1: status --porcelain (clean)
           if (callCount === 1) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "" } });
-          // Call 2: git ls-remote --heads (branch exists on remote)
-          if (callCount === 2) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "abc123 refs/heads/feature" } });
-          // Call 3: git fetch
+          // 2: for-each-ref upstream -> "origin"
+          if (callCount === 2) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "origin" } });
+          // 3: fetch
           if (callCount === 3) return Promise.resolve({ exitCode: 0 });
-          // Call 4: rev-list ahead count (0)
+          // 4: rev-list ahead -> 0
           if (callCount === 4) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "0" } });
-          // Call 5: rev-list behind count (0)
+          // 5: rev-list behind -> 0
           if (callCount === 5) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "0" } });
-          // Call 6: git worktree remove (fails)
+          // 6: git worktree remove (fails)
           return Promise.resolve({ exitCode: 1, stderr: { toString: () => "error" } });
         },
       }),
     } as any);
 
-    await expect(rm("feature")).rejects.toThrow("process.exit");
-    expect(consoleErrorSpy).toHaveBeenCalledWith("\nUse --force to override");
+    await expect(rm("feature")).rejects.toThrow("Use --force to override");
   });
 
   test("handles singular commit message", async () => {
@@ -386,18 +384,111 @@ describe("rm", () => {
       quiet: () => ({
         nothrow: () => {
           callCount++;
+          // 1: status --porcelain (clean)
           if (callCount === 1) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "" } });
-          if (callCount === 2) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "abc123" } });
+          // 2: for-each-ref upstream -> "origin"
+          if (callCount === 2) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "origin" } });
+          // 3: fetch
           if (callCount === 3) return Promise.resolve({ exitCode: 0 });
+          // 4: rev-list ahead -> 1
           if (callCount === 4) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "1" } });
-          if (callCount === 5) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "1" } });
-          return Promise.resolve({ exitCode: 0 });
+          // 5: rev-list behind -> 1
+          return Promise.resolve({ exitCode: 0, stdout: { toString: () => "1" } });
         },
       }),
     } as any);
 
-    await expect(rm("feature")).rejects.toThrow("process.exit");
-    expect(consoleErrorSpy).toHaveBeenCalledWith("  - 1 unpushed commit");
-    expect(consoleErrorSpy).toHaveBeenCalledWith("  - 1 commit behind remote");
+    const error = await rm("feature").catch((e: Error) => e);
+    expect(error.message).toContain("1 unpushed commit");
+    expect(error.message).toContain("1 commit behind remote");
+  });
+
+  test("uses configured upstream remote over origin", async () => {
+    mockIsValidWorktreeName.mockReturnValue(true);
+    mockCheckGwtSetup.mockReturnValue({ ok: true });
+    mockFindGwtRoot.mockReturnValue("/project");
+    mockExistsSync.mockReturnValue(true);
+    mockGetDefaultBranch.mockReturnValue(null);
+
+    const { $ } = await import("bun");
+    let callCount = 0;
+    vi.mocked($).mockReturnValue({
+      quiet: () => ({
+        nothrow: () => {
+          callCount++;
+          // 1: status --porcelain (clean)
+          if (callCount === 1) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "" } });
+          // 2: for-each-ref upstream -> "upstream/feature" (not origin)
+          if (callCount === 2) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "upstream/feature" } });
+          // 3: fetch --all
+          if (callCount === 3) return Promise.resolve({ exitCode: 0 });
+          // 4: rev-list ahead -> 0
+          if (callCount === 4) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "0" } });
+          // 5: rev-list behind -> 0
+          return Promise.resolve({ exitCode: 0, stdout: { toString: () => "0" } });
+        },
+      }),
+    } as any);
+
+    await rm("feature", { force: false });
+
+    expect(consoleSpy).toHaveBeenCalledWith("Done! Worktree 'feature' removed");
+  });
+
+  test("resolves slash-named remote when upstream is missing", async () => {
+    mockIsValidWorktreeName.mockReturnValue(true);
+    mockCheckGwtSetup.mockReturnValue({ ok: true });
+    mockFindGwtRoot.mockReturnValue("/project");
+    mockExistsSync.mockReturnValue(true);
+    mockGetDefaultBranch.mockReturnValue(null);
+
+    const { $ } = await import("bun");
+    let callCount = 0;
+    vi.mocked($).mockReturnValue({
+      quiet: () => ({
+        nothrow: () => {
+          callCount++;
+          // 1: status --porcelain (clean)
+          if (callCount === 1) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "" } });
+          // 2: upstream not configured
+          if (callCount === 2) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "" } });
+          // 3: scan refs/remotes for matching branch
+          if (callCount === 3) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "team/core/feature" } });
+          // 4: validate remote exists
+          if (callCount === 4) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "git@example.com:x/y.git" } });
+          // 5: fetch --all
+          if (callCount === 5) return Promise.resolve({ exitCode: 0 });
+          // 6: rev-list ahead -> 0
+          if (callCount === 6) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "0" } });
+          // 7: rev-list behind -> 0
+          return Promise.resolve({ exitCode: 0, stdout: { toString: () => "0" } });
+        },
+      }),
+    } as any);
+
+    await rm("feature");
+
+    expect(consoleSpy).toHaveBeenCalledWith("Done! Worktree 'feature' removed");
+  });
+
+  test("local-only branch reports not pushed to remote", async () => {
+    mockIsValidWorktreeName.mockReturnValue(true);
+    mockCheckGwtSetup.mockReturnValue({ ok: true });
+    mockFindGwtRoot.mockReturnValue("/project");
+    mockExistsSync.mockReturnValue(true);
+    mockGetDefaultBranch.mockReturnValue(null);
+
+    const { $ } = await import("bun");
+    vi.mocked($).mockReturnValue({
+      quiet: () => ({
+        nothrow: () =>
+          Promise.resolve({
+            exitCode: 0,
+            stdout: { toString: () => "" },
+          }),
+      }),
+    } as any);
+
+    await expect(rm("local-only")).rejects.toThrow("Branch 'local-only' not pushed to remote");
   });
 });

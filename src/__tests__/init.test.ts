@@ -9,7 +9,7 @@ vi.mock("../core/repo", () => ({
   findGwtRoot: vi.fn(),
   getGwtConfig: vi.fn(),
   getCurrentVersion: vi.fn(() => "0.1.0"),
-  detectDefaultBranch: vi.fn(() => Promise.resolve("main")),
+  detectDefaultBranch: vi.fn(() => Promise.resolve("master")),
 }));
 
 import { existsSync } from "fs";
@@ -48,16 +48,14 @@ describe("init", () => {
   test("exits with error when no .bare directory found", async () => {
     mockFindGwtRoot.mockReturnValue(null);
 
-    await expect(init()).rejects.toThrow("process.exit");
-    expect(consoleErrorSpy).toHaveBeenCalledWith("Error: No .bare directory found");
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
-      "Run this command from a bare worktree repository root or inside a worktree"
-    );
+    const error = await init().catch((e: Error) => e);
+    expect(error.message).toContain("Error: No .bare directory found");
+    expect(error.message).toContain("Run this command from a bare worktree repository root or inside a worktree");
   });
 
   test("returns early when already initialized with same version", async () => {
     mockFindGwtRoot.mockReturnValue("/project");
-    mockGetGwtConfig.mockReturnValue({ version: "0.1.0", defaultBranch: "main" });
+    mockGetGwtConfig.mockReturnValue({ version: "0.1.0", defaultBranch: "master" });
     mockGetCurrentVersion.mockReturnValue("0.1.0");
 
     await init();
@@ -67,7 +65,7 @@ describe("init", () => {
 
   test("upgrades when version differs", async () => {
     mockFindGwtRoot.mockReturnValue("/project");
-    mockGetGwtConfig.mockReturnValue({ version: "0.0.1", defaultBranch: "main" });
+    mockGetGwtConfig.mockReturnValue({ version: "0.0.1", defaultBranch: "master" });
     mockGetCurrentVersion.mockReturnValue("0.1.0");
     mockExistsSync.mockReturnValue(true);
 
@@ -103,7 +101,7 @@ describe("init", () => {
 
   test("creates .git file when missing", async () => {
     mockFindGwtRoot.mockReturnValue("/project");
-    mockGetGwtConfig.mockReturnValue({ version: null, defaultBranch: "main" });
+    mockGetGwtConfig.mockReturnValue({ version: null, defaultBranch: "master" });
     mockExistsSync.mockImplementation((path) => {
       if (typeof path === "string" && path.includes(".git")) return false;
       return true;
@@ -124,7 +122,7 @@ describe("init", () => {
 
   test("creates AGENTS.md when missing", async () => {
     mockFindGwtRoot.mockReturnValue("/project");
-    mockGetGwtConfig.mockReturnValue({ version: null, defaultBranch: "main" });
+    mockGetGwtConfig.mockReturnValue({ version: null, defaultBranch: "master" });
     mockExistsSync.mockImplementation((path) => {
       if (typeof path === "string" && path.includes("AGENTS.md")) return false;
       return true;
@@ -144,7 +142,7 @@ describe("init", () => {
 
   test("exits on fetch config failure", async () => {
     mockFindGwtRoot.mockReturnValue("/project");
-    mockGetGwtConfig.mockReturnValue({ version: null, defaultBranch: "main" });
+    mockGetGwtConfig.mockReturnValue({ version: null, defaultBranch: "master" });
     mockExistsSync.mockReturnValue(true);
 
     const { $ } = await import("bun");
@@ -154,8 +152,7 @@ describe("init", () => {
       }),
     } as any);
 
-    await expect(init()).rejects.toThrow("process.exit");
-    expect(consoleErrorSpy).toHaveBeenCalledWith("Error: Failed to configure fetch refspec");
+    await expect(init()).rejects.toThrow("Error: Failed to configure fetch refspec");
   });
 
   test("detects default branch when not set", async () => {
@@ -178,7 +175,7 @@ describe("init", () => {
 
   test("skips default branch detection when already set", async () => {
     mockFindGwtRoot.mockReturnValue("/project");
-    mockGetGwtConfig.mockReturnValue({ version: null, defaultBranch: "main" });
+    mockGetGwtConfig.mockReturnValue({ version: null, defaultBranch: "master" });
     mockExistsSync.mockReturnValue(true);
 
     const { $ } = await import("bun");
@@ -196,7 +193,7 @@ describe("init", () => {
 
   test("completes successfully", async () => {
     mockFindGwtRoot.mockReturnValue("/project");
-    mockGetGwtConfig.mockReturnValue({ version: null, defaultBranch: "main" });
+    mockGetGwtConfig.mockReturnValue({ version: null, defaultBranch: "master" });
     mockExistsSync.mockReturnValue(true);
 
     const { $ } = await import("bun");

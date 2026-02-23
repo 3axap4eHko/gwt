@@ -1,27 +1,21 @@
 #!/usr/bin/env bun
 
-import { defineCommand, runMain } from "citty";
-
-function extractExecCommand(): { exec: string[] | undefined; filteredArgv: string[] } {
-  const argv = process.argv;
-  const execIdx = argv.findIndex(a => a === "--exec" || a === "-x");
-  if (execIdx === -1) {
-    return { exec: undefined, filteredArgv: argv };
-  }
-  const execArgs = argv.slice(execIdx + 1);
-  const filteredArgv = argv.slice(0, execIdx);
-  return { exec: execArgs.length > 0 ? execArgs : undefined, filteredArgv };
-}
-
-const { exec: extractedExec, filteredArgv } = extractExecCommand();
-process.argv = filteredArgv;
+import { defineCommand, runCommand, showUsage } from "citty";
 import { clone } from "./commands/clone";
 import { add } from "./commands/add";
 import { list } from "./commands/list";
 import { rm } from "./commands/rm";
 import { init } from "./commands/init";
 import { cd } from "./commands/cd";
+import { edit } from "./commands/edit";
+import { run } from "./commands/run";
 import { shell } from "./commands/shell";
+import { sync } from "./commands/sync";
+import { pr } from "./commands/pr";
+import { mr } from "./commands/mr";
+import { lock, unlock, move } from "./commands/lock";
+import { install } from "./commands/install";
+import { update } from "./commands/update";
 
 const cloneCmd = defineCommand({
   meta: {
@@ -71,9 +65,15 @@ const addCmd = defineCommand({
       alias: "f",
       description: "Source branch",
     },
+    "no-fetch": {
+      type: "boolean",
+      alias: "n",
+      description: "Skip fetching remotes",
+      default: false,
+    },
   },
   run({ args }) {
-    return add(args.name, { from: args.from });
+    return add(args.name, { from: args.from, noFetch: args["no-fetch"] });
   },
 });
 
@@ -105,8 +105,20 @@ const listCmd = defineCommand({
     name: "list",
     description: "List all worktrees",
   },
-  run() {
-    return list();
+  args: {
+    json: {
+      type: "boolean",
+      description: "Output as JSON",
+      default: false,
+    },
+    names: {
+      type: "boolean",
+      description: "Output only worktree names",
+      default: false,
+    },
+  },
+  run({ args }) {
+    return list({ json: args.json, names: args.names });
   },
 });
 
@@ -121,32 +133,178 @@ const cdCmd = defineCommand({
       description: "Worktree name",
       required: false,
     },
-    open: {
-      type: "boolean",
-      alias: "o",
-      description: "Open in file manager",
-      default: false,
+  },
+  run({ args }) {
+    return cd(args.name);
+  },
+});
+
+const editCmd = defineCommand({
+  meta: {
+    name: "edit",
+    description: "Open worktree in IDE and cd there",
+  },
+  args: {
+    name: {
+      type: "positional",
+      description: "Worktree name",
+      required: false,
     },
-    edit: {
+    add: {
       type: "boolean",
-      alias: "e",
-      description: "Open in IDE (configurable via git config gwt.ide)",
-      default: false,
-    },
-    exec: {
-      type: "boolean",
-      alias: "x",
-      description: "Execute command in worktree (-x cmd args...)",
+      alias: "a",
+      description: "Add to current VS Code/Cursor workspace",
       default: false,
     },
   },
   run({ args }) {
-    const options = [args.open, args.edit, !!extractedExec].filter(Boolean);
-    if (options.length > 1) {
-      console.error("Error: --open, --edit, and --exec are mutually exclusive");
-      process.exit(1);
-    }
-    return cd(args.name, { open: args.open, edit: args.edit, exec: extractedExec });
+    return edit(args.name, { add: args.add });
+  },
+});
+
+const runCmd = defineCommand({
+  meta: {
+    name: "run",
+    description: "Run command in worktree (use -- before child flags)",
+  },
+  args: {
+    worktree: {
+      type: "string",
+      alias: "w",
+      description: "Worktree name",
+    },
+  },
+  run({ args }) {
+    const cmd = args._ as string[];
+    return run(cmd, args.worktree);
+  },
+});
+
+const lockCmd = defineCommand({
+  meta: {
+    name: "lock",
+    description: "Lock worktree to prevent removal",
+  },
+  args: {
+    name: {
+      type: "positional",
+      description: "Worktree name",
+      required: true,
+    },
+    reason: {
+      type: "string",
+      alias: "r",
+      description: "Lock reason",
+    },
+  },
+  run({ args }) {
+    return lock(args.name, args.reason);
+  },
+});
+
+const unlockCmd = defineCommand({
+  meta: {
+    name: "unlock",
+    description: "Unlock worktree",
+  },
+  args: {
+    name: {
+      type: "positional",
+      description: "Worktree name",
+      required: true,
+    },
+  },
+  run({ args }) {
+    return unlock(args.name);
+  },
+});
+
+const moveCmd = defineCommand({
+  meta: {
+    name: "move",
+    description: "Move worktree to new path",
+  },
+  args: {
+    name: {
+      type: "positional",
+      description: "Worktree name",
+      required: true,
+    },
+    dest: {
+      type: "positional",
+      description: "New path",
+      required: true,
+    },
+  },
+  run({ args }) {
+    return move(args.name, args.dest);
+  },
+});
+
+const prCmd = defineCommand({
+  meta: {
+    name: "pr",
+    description: "Open or create PR for worktree branch",
+  },
+  args: {
+    action: {
+      type: "positional",
+      description: "Action: 'create' to create PR, omit to view existing",
+      required: false,
+    },
+    name: {
+      type: "string",
+      alias: "w",
+      description: "Worktree name",
+    },
+  },
+  run({ args }) {
+    return pr(args.action, args.name);
+  },
+});
+
+const mrCmd = defineCommand({
+  meta: {
+    name: "mr",
+    description: "Open or create GitLab MR for worktree branch",
+  },
+  args: {
+    action: {
+      type: "positional",
+      description: "Action: 'create' to create MR, omit to view existing",
+      required: false,
+    },
+    name: {
+      type: "string",
+      alias: "w",
+      description: "Worktree name",
+    },
+  },
+  run({ args }) {
+    return mr(args.action, args.name);
+  },
+});
+
+const syncCmd = defineCommand({
+  meta: {
+    name: "sync",
+    description: "Fetch and pull --rebase in worktree",
+  },
+  args: {
+    name: {
+      type: "positional",
+      description: "Worktree name",
+      required: false,
+    },
+    "no-fetch": {
+      type: "boolean",
+      alias: "n",
+      description: "Skip fetching remotes",
+      default: false,
+    },
+  },
+  run({ args }) {
+    return sync(args.name, { noFetch: args["no-fetch"] });
   },
 });
 
@@ -166,6 +324,33 @@ const shellCmd = defineCommand({
   },
 });
 
+const installCmd = defineCommand({
+  meta: {
+    name: "install",
+    description: "Install gwt binary and shell integration",
+  },
+  args: {
+    dir: {
+      type: "positional",
+      description: "Install directory (default: ~/.local/bin)",
+      required: false,
+    },
+  },
+  run({ args }) {
+    return install(args.dir);
+  },
+});
+
+const updateCmd = defineCommand({
+  meta: {
+    name: "update",
+    description: "Update gwt to latest release",
+  },
+  run() {
+    return update();
+  },
+});
+
 const main = defineCommand({
   meta: {
     name: "gwt",
@@ -178,9 +363,34 @@ const main = defineCommand({
     add: addCmd,
     rm: rmCmd,
     list: listCmd,
+    lock: lockCmd,
+    unlock: unlockCmd,
+    move: moveCmd,
     cd: cdCmd,
+    edit: editCmd,
+    run: runCmd,
+    pr: prCmd,
+    mr: mrCmd,
+    sync: syncCmd,
     shell: shellCmd,
+    install: installCmd,
+    update: updateCmd,
   },
 });
 
-runMain(main);
+const rawArgs = process.argv.slice(2);
+
+try {
+  if (rawArgs.includes("--help") || rawArgs.includes("-h")) {
+    const subName = rawArgs.find(arg => !arg.startsWith("-"));
+    const sub = subName ? (main.subCommands as Record<string, any>)?.[subName] : undefined;
+    await showUsage(sub ?? main);
+  } else if (rawArgs.length === 1 && rawArgs[0] === "--version") {
+    console.log(main.meta?.version ?? "");
+  } else {
+    await runCommand(main, { rawArgs });
+  }
+} catch (error) {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exit(1);
+}

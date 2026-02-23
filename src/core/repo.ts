@@ -2,6 +2,48 @@ import { $ } from "bun";
 import { existsSync, readFileSync } from "fs";
 import { basename, dirname, parse, resolve } from "path";
 
+export interface Worktree {
+  path: string;
+  name: string;
+  branch: string | null;
+  mtime: number;
+}
+
+export async function getWorktrees(): Promise<Worktree[]> {
+  const result = await $`git worktree list --porcelain`.quiet().nothrow();
+  if (result.exitCode !== 0) {
+    throw new Error("Error: Failed to list worktrees");
+  }
+
+  const parsed = parseWorktreeList(result.stdout.toString()).filter(wt => !wt.isBare);
+
+  const worktrees = await Promise.all(
+    parsed.map(async ({ path, name, branch }) => {
+      let mtime = 0;
+      try {
+        const stat = await Bun.file(path).stat();
+        mtime = stat?.mtime?.getTime() ?? 0;
+      } catch {}
+      return { path, name, branch, mtime };
+    })
+  );
+
+  return worktrees.sort((a, b) => b.mtime - a.mtime);
+}
+
+export function formatAge(mtime: number): string {
+  if (!mtime) return "";
+  const diff = Date.now() - mtime;
+  const minutes = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+
+  if (days > 0) return `${days}d ago`;
+  if (hours > 0) return `${hours}h ago`;
+  if (minutes > 0) return `${minutes}m ago`;
+  return "just now";
+}
+
 const VERSION = "0.1.0";
 
 export interface GwtConfig {
@@ -126,7 +168,7 @@ export async function detectDefaultBranch(): Promise<string> {
     return symbolicRef.stdout.toString().trim().replace("refs/remotes/origin/", "");
   }
 
-  for (const branch of ["master", "main", "trunk", "develop"]) {
+  for (const branch of ["master", "main", "trunk", "develop", "default"]) {
     const result = await $`git show-ref --verify refs/remotes/origin/${branch}`.quiet().nothrow();
     if (result.exitCode === 0) {
       return branch;
@@ -144,6 +186,12 @@ export async function detectDefaultBranch(): Promise<string> {
     }
   }
 
+  const initDefault = await $`git config init.defaultBranch`.quiet().nothrow();
+  if (initDefault.exitCode === 0) {
+    const branch = initDefault.stdout.toString().trim();
+    if (branch) return branch;
+  }
+
   return "master";
 }
 
@@ -153,6 +201,8 @@ export interface WorktreeInfo {
   commit?: string;
   branch: string | null;
   isBare: boolean;
+  locked?: string;
+  prunable?: string;
 }
 
 export function parseWorktreeList(output: string): WorktreeInfo[] {
@@ -165,6 +215,8 @@ export function parseWorktreeList(output: string): WorktreeInfo[] {
     let commit: string | undefined;
     let branch: string | null = null;
     let isBare = false;
+    let locked: string | undefined;
+    let prunable: string | undefined;
 
     for (const line of lines) {
       if (line.startsWith("worktree ")) {
@@ -177,17 +229,28 @@ export function parseWorktreeList(output: string): WorktreeInfo[] {
         isBare = true;
       } else if (line === "detached") {
         branch = null;
+      } else if (line === "locked") {
+        locked = "";
+      } else if (line.startsWith("locked ")) {
+        locked = line.slice(7);
+      } else if (line === "prunable") {
+        prunable = "";
+      } else if (line.startsWith("prunable ")) {
+        prunable = line.slice(9);
       }
     }
 
     if (path) {
-      worktrees.push({
+      const info: WorktreeInfo = {
         path,
         name: basename(path),
         commit,
         branch,
         isBare,
-      });
+      };
+      if (locked !== undefined) info.locked = locked;
+      if (prunable !== undefined) info.prunable = prunable;
+      worktrees.push(info);
     }
   }
 

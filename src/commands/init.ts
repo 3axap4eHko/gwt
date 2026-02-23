@@ -8,9 +8,7 @@ export async function init(): Promise<void> {
   const root = findGwtRoot();
 
   if (!root) {
-    console.error("Error: No .bare directory found");
-    console.error("Run this command from a bare worktree repository root or inside a worktree");
-    process.exit(1);
+    throw new Error("Error: No .bare directory found\nRun this command from a bare worktree repository root or inside a worktree");
   }
 
   process.chdir(root);
@@ -46,21 +44,29 @@ export async function init(): Promise<void> {
   // Ensure fetch config is set
   const configFetch = await $`git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"`.quiet().nothrow();
   if (configFetch.exitCode !== 0) {
-    console.error("Error: Failed to configure fetch refspec");
-    process.exit(1);
+    throw new Error("Error: Failed to configure fetch refspec");
   }
-  await $`git config fetch.prune true`.quiet().nothrow();
+  const configPrune = await $`git config fetch.prune true`.quiet().nothrow();
+  if (configPrune.exitCode !== 0) {
+    throw new Error(`Error: Failed to configure fetch.prune\n${configPrune.stderr.toString()}`);
+  }
 
   // Detect default branch if not set
   let defaultBranch = config?.defaultBranch;
   if (!defaultBranch) {
     defaultBranch = await detectDefaultBranch();
-    await $`git config gwt.defaultBranch ${defaultBranch}`.quiet().nothrow();
+    const configBranch = await $`git config gwt.defaultBranch ${defaultBranch}`.quiet().nothrow();
+    if (configBranch.exitCode !== 0) {
+      throw new Error(`Error: Failed to set gwt.defaultBranch\n${configBranch.stderr.toString()}`);
+    }
     console.log(`  Default branch: ${defaultBranch}`);
   }
 
   // Set version
-  await $`git config gwt.version ${getCurrentVersion()}`.quiet().nothrow();
+  const configVersion = await $`git config gwt.version ${getCurrentVersion()}`.quiet().nothrow();
+  if (configVersion.exitCode !== 0) {
+    throw new Error(`Error: Failed to set gwt.version\n${configVersion.stderr.toString()}`);
+  }
 
   console.log("");
   console.log(`Done! Repository initialized for gwt v${getCurrentVersion()}`);

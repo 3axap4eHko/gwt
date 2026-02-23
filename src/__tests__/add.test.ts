@@ -44,18 +44,14 @@ describe("add", () => {
   test("exits with error for invalid worktree name", async () => {
     mockIsValidWorktreeName.mockReturnValue(false);
 
-    await expect(add("../invalid")).rejects.toThrow("process.exit");
-    expect(consoleErrorSpy).toHaveBeenCalledWith("Error: Invalid worktree name");
-    expect(mockExit).toHaveBeenCalledWith(1);
+    await expect(add("../invalid")).rejects.toThrow("Error: Invalid worktree name");
   });
 
   test("exits with error when not in gwt repo", async () => {
     mockIsValidWorktreeName.mockReturnValue(true);
     mockCheckGwtSetup.mockReturnValue({ ok: false, error: "Not in gwt repo" });
 
-    await expect(add("feature")).rejects.toThrow("process.exit");
-    expect(consoleErrorSpy).toHaveBeenCalledWith("Error: Not in gwt repo");
-    expect(mockExit).toHaveBeenCalledWith(1);
+    await expect(add("feature")).rejects.toThrow("Error: Not in gwt repo");
   });
 
   test("exits with error when directory already exists", async () => {
@@ -64,9 +60,7 @@ describe("add", () => {
     mockFindGwtRoot.mockReturnValue("/project");
     mockExistsSync.mockReturnValue(true);
 
-    await expect(add("feature")).rejects.toThrow("process.exit");
-    expect(consoleErrorSpy).toHaveBeenCalledWith("Error: Directory 'feature' already exists");
-    expect(mockExit).toHaveBeenCalledWith(1);
+    await expect(add("feature")).rejects.toThrow("Error: Directory 'feature' already exists");
   });
 
   test("creates worktree from local branch", async () => {
@@ -95,7 +89,7 @@ describe("add", () => {
       } as any;
     });
 
-    await add("feature");
+    await add("feature", { noFetch: true });
 
     expect(consoleSpy).toHaveBeenCalledWith("Creating worktree 'feature' from existing branch...");
     expect(consoleSpy).toHaveBeenCalledWith("Done! Worktree created at feature/");
@@ -114,10 +108,49 @@ describe("add", () => {
       return {
         quiet: () => ({
           nothrow: () => {
+            // findRemoteBranch: git for-each-ref returns origin/feature
             if (callCount === 1) {
               return Promise.resolve({
                 exitCode: 0,
-                stdout: { toString: () => "abc123 refs/heads/feature" },
+                stdout: { toString: () => "origin/feature" },
+              });
+            }
+            // branchExistsLocally: not found locally
+            if (callCount === 2) {
+              return Promise.resolve({ exitCode: 1 });
+            }
+            return Promise.resolve({
+              exitCode: 0,
+              stdout: { toString: () => "" },
+              stderr: { toString: () => "" },
+            });
+          },
+        }),
+      } as any;
+    });
+
+    await add("feature", { noFetch: true });
+
+    expect(consoleSpy).toHaveBeenCalledWith("Creating worktree 'feature' tracking remote branch...");
+  });
+
+  test("prefers origin when branch exists on multiple remotes", async () => {
+    mockIsValidWorktreeName.mockReturnValue(true);
+    mockCheckGwtSetup.mockReturnValue({ ok: true });
+    mockFindGwtRoot.mockReturnValue("/project");
+    mockExistsSync.mockReturnValue(false);
+
+    const { $ } = await import("bun");
+    let callCount = 0;
+    vi.mocked($).mockImplementation(() => {
+      callCount++;
+      return {
+        quiet: () => ({
+          nothrow: () => {
+            if (callCount === 1) {
+              return Promise.resolve({
+                exitCode: 0,
+                stdout: { toString: () => "upstream/feature\norigin/feature" },
               });
             }
             if (callCount === 2) {
@@ -133,7 +166,88 @@ describe("add", () => {
       } as any;
     });
 
-    await add("feature");
+    await add("feature", { noFetch: true });
+
+    expect(consoleSpy).toHaveBeenCalledWith("Creating worktree 'feature' tracking remote branch...");
+  });
+
+  test("falls back to non-origin remote", async () => {
+    mockIsValidWorktreeName.mockReturnValue(true);
+    mockCheckGwtSetup.mockReturnValue({ ok: true });
+    mockFindGwtRoot.mockReturnValue("/project");
+    mockExistsSync.mockReturnValue(false);
+
+    const { $ } = await import("bun");
+    let callCount = 0;
+    vi.mocked($).mockImplementation(() => {
+      callCount++;
+      return {
+        quiet: () => ({
+          nothrow: () => {
+            if (callCount === 1) {
+              return Promise.resolve({
+                exitCode: 0,
+                stdout: { toString: () => "upstream/feature" },
+              });
+            }
+            if (callCount === 2) {
+              return Promise.resolve({ exitCode: 1 });
+            }
+            return Promise.resolve({
+              exitCode: 0,
+              stdout: { toString: () => "" },
+              stderr: { toString: () => "" },
+            });
+          },
+        }),
+      } as any;
+    });
+
+    await add("feature", { noFetch: true });
+
+    expect(consoleSpy).toHaveBeenCalledWith("Creating worktree 'feature' tracking remote branch...");
+  });
+
+  test("tracks remote branch when remote name contains slash", async () => {
+    mockIsValidWorktreeName.mockReturnValue(true);
+    mockCheckGwtSetup.mockReturnValue({ ok: true });
+    mockFindGwtRoot.mockReturnValue("/project");
+    mockExistsSync.mockReturnValue(false);
+
+    const { $ } = await import("bun");
+    let callCount = 0;
+    vi.mocked($).mockImplementation(() => {
+      callCount++;
+      return {
+        quiet: () => ({
+          nothrow: () => {
+            // findRemoteBranch: refs/remotes scan
+            if (callCount === 1) {
+              return Promise.resolve({
+                exitCode: 0,
+                stdout: { toString: () => "team/core/feature" },
+              });
+            }
+            // branchExistsLocally: not found locally
+            if (callCount === 2) {
+              return Promise.resolve({ exitCode: 1 });
+            }
+            // validate remote exists
+            if (callCount === 3) {
+              return Promise.resolve({ exitCode: 0 });
+            }
+            // git worktree add
+            return Promise.resolve({
+              exitCode: 0,
+              stdout: { toString: () => "" },
+              stderr: { toString: () => "" },
+            });
+          },
+        }),
+      } as any;
+    });
+
+    await add("feature", { noFetch: true });
 
     expect(consoleSpy).toHaveBeenCalledWith("Creating worktree 'feature' tracking remote branch...");
   });
@@ -143,7 +257,7 @@ describe("add", () => {
     mockCheckGwtSetup.mockReturnValue({ ok: true });
     mockFindGwtRoot.mockReturnValue("/project");
     mockExistsSync.mockReturnValue(false);
-    mockGetDefaultBranch.mockReturnValue("main");
+    mockGetDefaultBranch.mockReturnValue("master");
 
     const { $ } = await import("bun");
     let callCount = 0;
@@ -151,11 +265,9 @@ describe("add", () => {
       quiet: () => ({
         nothrow: () => {
           callCount++;
-          // First two calls: branch existence checks (both return not found)
           if (callCount <= 2) {
             return Promise.resolve({ exitCode: 1, stdout: { toString: () => "" } });
           }
-          // Third call: worktree add
           return Promise.resolve({
             exitCode: 0,
             stdout: { toString: () => "" },
@@ -165,9 +277,9 @@ describe("add", () => {
       }),
     } as any));
 
-    await add("feature");
+    await add("feature", { noFetch: true });
 
-    expect(consoleSpy).toHaveBeenCalledWith("Creating worktree 'feature' as new branch from 'main'...");
+    expect(consoleSpy).toHaveBeenCalledWith("Creating worktree 'feature' as new branch from 'master'...");
   });
 
   test("uses from option for source branch", async () => {
@@ -182,11 +294,9 @@ describe("add", () => {
       quiet: () => ({
         nothrow: () => {
           callCount++;
-          // First two calls: branch existence checks (both return not found)
           if (callCount <= 2) {
             return Promise.resolve({ exitCode: 1, stdout: { toString: () => "" } });
           }
-          // Third call: worktree add
           return Promise.resolve({
             exitCode: 0,
             stdout: { toString: () => "" },
@@ -196,7 +306,7 @@ describe("add", () => {
       }),
     } as any));
 
-    await add("feature", { from: "develop" });
+    await add("feature", { from: "develop", noFetch: true });
 
     expect(consoleSpy).toHaveBeenCalledWith("Creating worktree 'feature' as new branch from 'develop'...");
   });
@@ -214,11 +324,9 @@ describe("add", () => {
       quiet: () => ({
         nothrow: () => {
           callCount++;
-          // First two calls: branch existence checks (both return not found)
           if (callCount <= 2) {
             return Promise.resolve({ exitCode: 1, stdout: { toString: () => "" } });
           }
-          // Third call: worktree add
           return Promise.resolve({
             exitCode: 0,
             stdout: { toString: () => "" },
@@ -228,7 +336,7 @@ describe("add", () => {
       }),
     } as any));
 
-    await add("feature");
+    await add("feature", { noFetch: true });
 
     expect(consoleSpy).toHaveBeenCalledWith("Creating worktree 'feature' as new branch from 'master'...");
   });
@@ -256,7 +364,83 @@ describe("add", () => {
       }),
     } as any));
 
-    await expect(add("feature")).rejects.toThrow("process.exit");
-    expect(consoleErrorSpy).toHaveBeenCalledWith("Error: Failed to create worktree");
+    await expect(add("feature", { noFetch: true })).rejects.toThrow("Error: Failed to create worktree");
+  });
+
+  test("fetches all remotes by default", async () => {
+    mockIsValidWorktreeName.mockReturnValue(true);
+    mockCheckGwtSetup.mockReturnValue({ ok: true });
+    mockFindGwtRoot.mockReturnValue("/project");
+    mockExistsSync.mockReturnValue(false);
+
+    const { $ } = await import("bun");
+    vi.mocked($).mockReturnValue({
+      quiet: () => ({
+        nothrow: () =>
+          Promise.resolve({
+            exitCode: 0,
+            stdout: { toString: () => "" },
+            stderr: { toString: () => "" },
+          }),
+      }),
+    } as any);
+
+    await add("feature");
+
+    expect(consoleSpy).toHaveBeenCalledWith("Fetching remotes...");
+  });
+
+  test("skips fetch with noFetch option", async () => {
+    mockIsValidWorktreeName.mockReturnValue(true);
+    mockCheckGwtSetup.mockReturnValue({ ok: true });
+    mockFindGwtRoot.mockReturnValue("/project");
+    mockExistsSync.mockReturnValue(false);
+
+    const { $ } = await import("bun");
+    vi.mocked($).mockReturnValue({
+      quiet: () => ({
+        nothrow: () =>
+          Promise.resolve({
+            exitCode: 0,
+            stdout: { toString: () => "" },
+            stderr: { toString: () => "" },
+          }),
+      }),
+    } as any);
+
+    await add("feature", { noFetch: true });
+
+    expect(consoleSpy).not.toHaveBeenCalledWith("Fetching remotes...");
+  });
+
+  test("warns on fetch failure but continues", async () => {
+    mockIsValidWorktreeName.mockReturnValue(true);
+    mockCheckGwtSetup.mockReturnValue({ ok: true });
+    mockFindGwtRoot.mockReturnValue("/project");
+    mockExistsSync.mockReturnValue(false);
+
+    const { $ } = await import("bun");
+    let callCount = 0;
+    vi.mocked($).mockImplementation(() => ({
+      quiet: () => ({
+        nothrow: () => {
+          callCount++;
+          // Call 1: fetch fails
+          if (callCount === 1) {
+            return Promise.resolve({ exitCode: 1, stderr: { toString: () => "network error" } });
+          }
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: { toString: () => "" },
+            stderr: { toString: () => "" },
+          });
+        },
+      }),
+    } as any));
+
+    await add("feature");
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith("Warning: Failed to fetch remotes");
+    expect(consoleSpy).toHaveBeenCalledWith("Done! Worktree created at feature/");
   });
 });

@@ -10,6 +10,8 @@ import {
   checkGwtSetup,
   clearCache,
   detectDefaultBranch,
+  getWorktrees,
+  formatAge,
 } from "../core/repo";
 import { existsSync, readFileSync } from "fs";
 
@@ -23,26 +25,26 @@ const mockReadFileSync = vi.mocked(readFileSync);
 
 describe("parseWorktreeList", () => {
   test("parses single worktree", () => {
-    const output = `worktree /home/user/project/main
+    const output = `worktree /home/user/project/master
 HEAD abc123def456
-branch refs/heads/main`;
+branch refs/heads/master`;
 
     const result = parseWorktreeList(output);
 
     expect(result).toHaveLength(1);
     expect(result[0]).toEqual({
-      path: "/home/user/project/main",
-      name: "main",
+      path: "/home/user/project/master",
+      name: "master",
       commit: "abc123def456",
-      branch: "main",
+      branch: "master",
       isBare: false,
     });
   });
 
   test("parses multiple worktrees", () => {
-    const output = `worktree /home/user/project/main
+    const output = `worktree /home/user/project/master
 HEAD abc123
-branch refs/heads/main
+branch refs/heads/master
 
 worktree /home/user/project/feature
 HEAD def456
@@ -51,8 +53,8 @@ branch refs/heads/feature-branch`;
     const result = parseWorktreeList(output);
 
     expect(result).toHaveLength(2);
-    expect(result[0].name).toBe("main");
-    expect(result[0].branch).toBe("main");
+    expect(result[0].name).toBe("master");
+    expect(result[0].branch).toBe("master");
     expect(result[1].name).toBe("feature");
     expect(result[1].branch).toBe("feature-branch");
   });
@@ -61,9 +63,9 @@ branch refs/heads/feature-branch`;
     const output = `worktree /home/user/project/.bare
 bare
 
-worktree /home/user/project/main
+worktree /home/user/project/master
 HEAD abc123
-branch refs/heads/main`;
+branch refs/heads/master`;
 
     const result = parseWorktreeList(output);
 
@@ -102,21 +104,75 @@ branch refs/heads/my-feature`;
 
   test("handles entry without path", () => {
     const output = `HEAD abc123
-branch refs/heads/main`;
+branch refs/heads/master`;
 
     const result = parseWorktreeList(output);
     expect(result).toHaveLength(0);
   });
 
   test("handles unknown line types", () => {
-    const output = `worktree /home/user/project/main
+    const output = `worktree /home/user/project/master
 HEAD abc123
-branch refs/heads/main
+branch refs/heads/master
 unknown line here`;
 
     const result = parseWorktreeList(output);
     expect(result).toHaveLength(1);
-    expect(result[0].branch).toBe("main");
+    expect(result[0].branch).toBe("master");
+  });
+
+  test("parses locked worktree without reason", () => {
+    const output = `worktree /home/user/project/feature
+HEAD abc123
+branch refs/heads/feature
+locked`;
+
+    const result = parseWorktreeList(output);
+    expect(result).toHaveLength(1);
+    expect(result[0].locked).toBe("");
+  });
+
+  test("parses locked worktree with reason", () => {
+    const output = `worktree /home/user/project/feature
+HEAD abc123
+branch refs/heads/feature
+locked work in progress`;
+
+    const result = parseWorktreeList(output);
+    expect(result).toHaveLength(1);
+    expect(result[0].locked).toBe("work in progress");
+  });
+
+  test("parses prunable worktree without reason", () => {
+    const output = `worktree /home/user/project/stale
+HEAD abc123
+branch refs/heads/stale
+prunable`;
+
+    const result = parseWorktreeList(output);
+    expect(result).toHaveLength(1);
+    expect(result[0].prunable).toBe("");
+  });
+
+  test("parses prunable worktree with reason", () => {
+    const output = `worktree /home/user/project/stale
+HEAD abc123
+branch refs/heads/stale
+prunable gitdir file points to non-existent location`;
+
+    const result = parseWorktreeList(output);
+    expect(result).toHaveLength(1);
+    expect(result[0].prunable).toBe("gitdir file points to non-existent location");
+  });
+
+  test("omits locked/prunable when not present", () => {
+    const output = `worktree /home/user/project/master
+HEAD abc123
+branch refs/heads/master`;
+
+    const result = parseWorktreeList(output);
+    expect(result[0].locked).toBeUndefined();
+    expect(result[0].prunable).toBeUndefined();
   });
 });
 
@@ -149,20 +205,20 @@ describe("findGwtRoot", () => {
 
   test("finds root via .git file pointing to parent .bare", () => {
     mockExistsSync.mockImplementation((path) => {
-      if (path === "/home/user/project/main/.git") return true;
+      if (path === "/home/user/project/master/.git") return true;
       if (path === "/home/user/project/.bare") return true;
       return false;
     });
     mockReadFileSync.mockReturnValue("gitdir: ../.bare\n");
 
-    const result = findGwtRoot("/home/user/project/main");
+    const result = findGwtRoot("/home/user/project/master");
     expect(result).toBe("/home/user/project");
   });
 
   test("finds and caches root via .git file without startDir", () => {
-    vi.spyOn(process, "cwd").mockReturnValue("/home/user/project/main");
+    vi.spyOn(process, "cwd").mockReturnValue("/home/user/project/master");
     mockExistsSync.mockImplementation((path) => {
-      if (path === "/home/user/project/main/.git") return true;
+      if (path === "/home/user/project/master/.git") return true;
       if (path === "/home/user/project/.bare") return true;
       return false;
     });
@@ -234,12 +290,12 @@ describe("findGwtRoot", () => {
 
   test("ignores .git file when parent has no .bare", () => {
     mockExistsSync.mockImplementation((path) => {
-      if (path === "/home/user/project/main/.git") return true;
+      if (path === "/home/user/project/master/.git") return true;
       return false;
     });
     mockReadFileSync.mockReturnValue("gitdir: ../.bare\n");
 
-    const result = findGwtRoot("/home/user/project/main");
+    const result = findGwtRoot("/home/user/project/master");
     expect(result).toBeNull();
   });
 });
@@ -277,14 +333,14 @@ describe("getGwtConfig", () => {
   bare = true
 [gwt]
   version = 0.1.0
-  defaultBranch = main
+  defaultBranch = master
 [remote "origin"]
   url = git@github.com:test/repo.git`);
 
     const result = getGwtConfig();
     expect(result).toEqual({
       version: "0.1.0",
-      defaultBranch: "main",
+      defaultBranch: "master",
     });
   });
 
@@ -479,13 +535,13 @@ describe("detectDefaultBranch", () => {
         nothrow: () =>
           Promise.resolve({
             exitCode: 0,
-            stdout: { toString: () => "refs/remotes/origin/main\n" },
+            stdout: { toString: () => "refs/remotes/origin/master\n" },
           }),
       }),
     } as any);
 
     const result = await detectDefaultBranch();
-    expect(result).toBe("main");
+    expect(result).toBe("master");
   });
 
   test("falls back to common branch names", async () => {
@@ -498,16 +554,13 @@ describe("detectDefaultBranch", () => {
           if (callCount === 1) {
             return Promise.resolve({ exitCode: 1 });
           }
-          if (callCount === 2) {
-            return Promise.resolve({ exitCode: 1 });
-          }
           return Promise.resolve({ exitCode: 0 });
         },
       }),
     } as any);
 
     const result = await detectDefaultBranch();
-    expect(result).toBe("main");
+    expect(result).toBe("master");
   });
 
   test("falls back to first remote branch", async () => {
@@ -517,12 +570,12 @@ describe("detectDefaultBranch", () => {
       quiet: () => ({
         nothrow: () => {
           callCount++;
-          if (callCount <= 5) {
+          if (callCount <= 6) {
             return Promise.resolve({ exitCode: 1 });
           }
           return Promise.resolve({
             exitCode: 0,
-            stdout: { toString: () => "  origin/feature\n  origin/HEAD -> origin/main" },
+            stdout: { toString: () => "  origin/feature\n  origin/HEAD -> origin/master" },
           });
         },
       }),
@@ -530,6 +583,30 @@ describe("detectDefaultBranch", () => {
 
     const result = await detectDefaultBranch();
     expect(result).toBe("feature");
+  });
+
+  test("falls back to init.defaultBranch config", async () => {
+    const { $ } = await import("bun");
+    let callCount = 0;
+    vi.mocked($).mockReturnValue({
+      quiet: () => ({
+        nothrow: () => {
+          callCount++;
+          // Calls 1-7: symbolic-ref, 5 common names, git branch -r all fail
+          if (callCount <= 7) {
+            return Promise.resolve({ exitCode: 1 });
+          }
+          // Call 8: git config init.defaultBranch
+          return Promise.resolve({
+            exitCode: 0,
+            stdout: { toString: () => "trunk\n" },
+          });
+        },
+      }),
+    } as any);
+
+    const result = await detectDefaultBranch();
+    expect(result).toBe("trunk");
   });
 
   test("returns master as last resort", async () => {
@@ -551,12 +628,12 @@ describe("detectDefaultBranch", () => {
       quiet: () => ({
         nothrow: () => {
           callCount++;
-          if (callCount <= 5) {
+          if (callCount <= 6) {
             return Promise.resolve({ exitCode: 1 });
           }
           return Promise.resolve({
             exitCode: 0,
-            stdout: { toString: () => "  origin/HEAD -> origin/main\n  origin/develop" },
+            stdout: { toString: () => "  origin/HEAD -> origin/master\n  origin/develop" },
           });
         },
       }),
@@ -564,5 +641,143 @@ describe("detectDefaultBranch", () => {
 
     const result = await detectDefaultBranch();
     expect(result).toBe("develop");
+  });
+});
+
+describe("formatAge", () => {
+  test("returns empty for zero mtime", () => {
+    expect(formatAge(0)).toBe("");
+  });
+
+  test("returns days ago", () => {
+    expect(formatAge(Date.now() - 2 * 86400000)).toBe("2d ago");
+  });
+
+  test("returns hours ago", () => {
+    expect(formatAge(Date.now() - 3 * 3600000)).toBe("3h ago");
+  });
+
+  test("returns minutes ago", () => {
+    expect(formatAge(Date.now() - 5 * 60000)).toBe("5m ago");
+  });
+
+  test("returns just now for recent", () => {
+    expect(formatAge(Date.now() - 1000)).toBe("just now");
+  });
+});
+
+describe("getWorktrees", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    (globalThis as any).Bun = {
+      file: vi.fn(() => ({
+        stat: () => Promise.resolve({ mtime: { getTime: () => Date.now() - 3600000 } }),
+      })),
+    };
+  });
+
+  test("throws when git worktree list fails", async () => {
+    const { $ } = await import("bun");
+    vi.mocked($).mockReturnValue({
+      quiet: () => ({
+        nothrow: () => Promise.resolve({ exitCode: 1 }),
+      }),
+    } as any);
+
+    await expect(getWorktrees()).rejects.toThrow("Error: Failed to list worktrees");
+  });
+
+  test("filters bare worktrees", async () => {
+    const { $ } = await import("bun");
+    vi.mocked($).mockReturnValue({
+      quiet: () => ({
+        nothrow: () =>
+          Promise.resolve({
+            exitCode: 0,
+            stdout: {
+              toString: () =>
+                `worktree /project/.bare\nbare\n\nworktree /project/master\nHEAD abc123\nbranch refs/heads/master`,
+            },
+          }),
+      }),
+    } as any);
+
+    const result = await getWorktrees();
+    expect(result).toHaveLength(1);
+    expect(result[0].name).toBe("master");
+  });
+
+  test("sorts by mtime descending", async () => {
+    const now = Date.now();
+    (globalThis as any).Bun.file = vi.fn((path: string) => ({
+      stat: () =>
+        Promise.resolve({
+          mtime: { getTime: () => (path.includes("new") ? now : now - 86400000) },
+        }),
+    }));
+
+    const { $ } = await import("bun");
+    vi.mocked($).mockReturnValue({
+      quiet: () => ({
+        nothrow: () =>
+          Promise.resolve({
+            exitCode: 0,
+            stdout: {
+              toString: () =>
+                `worktree /project/old\nHEAD abc\nbranch refs/heads/old\n\nworktree /project/new\nHEAD def\nbranch refs/heads/new`,
+            },
+          }),
+      }),
+    } as any);
+
+    const result = await getWorktrees();
+    expect(result[0].name).toBe("new");
+    expect(result[1].name).toBe("old");
+  });
+
+  test("handles stat errors gracefully", async () => {
+    (globalThis as any).Bun.file = vi.fn(() => ({
+      stat: () => Promise.reject(new Error("stat error")),
+    }));
+
+    const { $ } = await import("bun");
+    vi.mocked($).mockReturnValue({
+      quiet: () => ({
+        nothrow: () =>
+          Promise.resolve({
+            exitCode: 0,
+            stdout: {
+              toString: () => `worktree /project/master\nHEAD abc123\nbranch refs/heads/master`,
+            },
+          }),
+      }),
+    } as any);
+
+    const result = await getWorktrees();
+    expect(result).toHaveLength(1);
+    expect(result[0].mtime).toBe(0);
+  });
+
+  test("handles null mtime", async () => {
+    (globalThis as any).Bun.file = vi.fn(() => ({
+      stat: () => Promise.resolve({ mtime: null }),
+    }));
+
+    const { $ } = await import("bun");
+    vi.mocked($).mockReturnValue({
+      quiet: () => ({
+        nothrow: () =>
+          Promise.resolve({
+            exitCode: 0,
+            stdout: {
+              toString: () => `worktree /project/master\nHEAD abc123\nbranch refs/heads/master`,
+            },
+          }),
+      }),
+    } as any);
+
+    const result = await getWorktrees();
+    expect(result).toHaveLength(1);
+    expect(result[0].mtime).toBe(0);
   });
 });

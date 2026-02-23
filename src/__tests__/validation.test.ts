@@ -34,7 +34,6 @@ describe("isValidWorktreeName", () => {
 
   test("allows dots in names", () => {
     expect(isValidWorktreeName("v1.0.0")).toBe(true);
-    expect(isValidWorktreeName(".hidden")).toBe(true);
     expect(isValidWorktreeName("file.txt")).toBe(true);
   });
 
@@ -48,5 +47,27 @@ describe("isValidWorktreeName", () => {
     expect(isValidWorktreeName("  ")).toBe(false);
     expect(isValidWorktreeName("\t")).toBe(false);
     expect(isValidWorktreeName("\n")).toBe(false);
+  });
+
+  test("rejects invalid git ref characters", () => {
+    expect(isValidWorktreeName("foo~1")).toBe(false);
+    expect(isValidWorktreeName("foo^2")).toBe(false);
+    expect(isValidWorktreeName("foo:bar")).toBe(false);
+    expect(isValidWorktreeName("foo?")).toBe(false);
+    expect(isValidWorktreeName("foo*")).toBe(false);
+    expect(isValidWorktreeName("foo[0]")).toBe(false);
+    expect(isValidWorktreeName("foo\\bar")).toBe(false);
+  });
+
+  test("rejects invalid git ref patterns", () => {
+    expect(isValidWorktreeName("-flag")).toBe(false);
+    expect(isValidWorktreeName("name.lock")).toBe(false);
+    expect(isValidWorktreeName("foo//bar")).toBe(false);
+    expect(isValidWorktreeName("@{")).toBe(false);
+    expect(isValidWorktreeName("@")).toBe(false);
+    expect(isValidWorktreeName(".hidden")).toBe(false);
+    expect(isValidWorktreeName("foo/")).toBe(false);
+    expect(isValidWorktreeName("foo/.bar")).toBe(false);
+    expect(isValidWorktreeName("foo/bar.")).toBe(false);
   });
 });
