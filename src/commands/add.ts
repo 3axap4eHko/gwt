@@ -71,7 +71,8 @@ export async function add(name: string, options: AddOptions = {}): Promise<void>
 }
 
 async function findRemoteBranch(name: string): Promise<string | null> {
-  const result = await $`git for-each-ref --format=%(refname:short) refs/remotes`.quiet().nothrow();
+  const fmt = "%(refname:short)";
+  const result = await $`git for-each-ref --format=${fmt} refs/remotes`.quiet().nothrow();
   if (result.exitCode !== 0) return null;
 
   const refs = result.stdout

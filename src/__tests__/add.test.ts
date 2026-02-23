@@ -411,6 +411,20 @@ describe("add", () => {
     expect(consoleSpy).not.toHaveBeenCalledWith("Fetching remotes...");
   });
 
+  test("git format strings with parentheses pass through bun shell", () => {
+    const { spawnSync } = require("child_process");
+    const script = [
+      'import { $ } from "bun";',
+      'for (const fmt of ["%(refname:short)", "%(upstream:short)"]) {',
+      "  const r = await $`echo ${fmt}`.quiet().nothrow();",
+      "  if (r.exitCode !== 0) process.exit(1);",
+      "  if (r.stdout.toString().trim() !== fmt) process.exit(2);",
+      "}",
+    ].join("\n");
+    const result = spawnSync("bun", ["-e", script], { encoding: "utf-8", timeout: 5000 });
+    expect(result.status).toBe(0);
+  });
+
   test("warns on fetch failure but continues", async () => {
     mockIsValidWorktreeName.mockReturnValue(true);
     mockCheckGwtSetup.mockReturnValue({ ok: true });

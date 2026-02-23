@@ -68,13 +68,15 @@ export async function rm(name: string, options: RmOptions = {}): Promise<void> {
 }
 
 async function findTrackingRef(name: string): Promise<string | null> {
-  const upstream = await $`git for-each-ref --format=%(upstream:short) refs/heads/${name}`.quiet().nothrow();
+  const upstreamFmt = "%(upstream:short)";
+  const upstream = await $`git for-each-ref --format=${upstreamFmt} refs/heads/${name}`.quiet().nothrow();
   if (upstream.exitCode === 0) {
     const trackingRef = upstream.stdout.toString().trim();
     if (trackingRef) return trackingRef;
   }
 
-  const scan = await $`git for-each-ref --format=%(refname:short) refs/remotes`.quiet().nothrow();
+  const refFmt = "%(refname:short)";
+  const scan = await $`git for-each-ref --format=${refFmt} refs/remotes`.quiet().nothrow();
   if (scan.exitCode !== 0) return null;
 
   const refs = scan.stdout
