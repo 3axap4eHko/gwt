@@ -16,6 +16,7 @@ import { mr } from "./commands/mr";
 import { lock, unlock, move } from "./commands/lock";
 import { install } from "./commands/install";
 import { update } from "./commands/update";
+import { getCurrentVersion } from "./core/repo";
 
 const cloneCmd = defineCommand({
   meta: {
@@ -354,7 +355,7 @@ const updateCmd = defineCommand({
 const main = defineCommand({
   meta: {
     name: "gwt",
-    version: "0.1.0",
+    version: getCurrentVersion(),
     description: "Git Worktree Manager",
   },
   subCommands: {

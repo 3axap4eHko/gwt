@@ -44,7 +44,8 @@ export function formatAge(mtime: number): string {
   return "just now";
 }
 
-const VERSION = "0.1.0";
+import pkg from "../../package.json";
+const VERSION = pkg.version;
 
 export interface GwtConfig {
   version: string | null;
