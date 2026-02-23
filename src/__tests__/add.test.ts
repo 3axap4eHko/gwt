@@ -26,17 +26,15 @@ const mockGetDefaultBranch = vi.mocked(getDefaultBranch);
 const mockIsValidWorktreeName = vi.mocked(isValidWorktreeName);
 
 describe("add", () => {
-  let mockExit: ReturnType<typeof vi.spyOn>;
-  let mockChdir: ReturnType<typeof vi.spyOn>;
   let consoleSpy: ReturnType<typeof vi.spyOn>;
   let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockExit = vi.spyOn(process, "exit").mockImplementation(() => {
+    vi.spyOn(process, "exit").mockImplementation(() => {
       throw new Error("process.exit");
     });
-    mockChdir = vi.spyOn(process, "chdir").mockImplementation(() => {});
+    vi.spyOn(process, "chdir").mockImplementation(() => {});
     consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
   });

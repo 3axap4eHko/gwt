@@ -9,6 +9,7 @@ export function isValidWorktreeName(name: string): boolean {
   if (name.endsWith(".lock")) return false;
   if (name.includes("//")) return false;
   if (name.includes("@{")) return false;
+  // eslint-disable-next-line no-control-regex
   if (/[\x00-\x1f\x7f~^:?*\\[\]]/.test(name)) return false;
   if (name === "@") return false;
   for (const part of name.split("/")) {

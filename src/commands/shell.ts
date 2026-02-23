@@ -14,7 +14,7 @@ gwt() {
 
 _gwt_completions() {
   local cur=\${COMP_WORDS[COMP_CWORD]}
-  if [[ \$COMP_CWORD -eq 1 ]]; then
+  if [[ $COMP_CWORD -eq 1 ]]; then
     COMPREPLY=($(compgen -W "${SUBCOMMANDS}" -- "$cur"))
     return
   fi

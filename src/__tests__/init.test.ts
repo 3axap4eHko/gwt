@@ -22,19 +22,16 @@ const mockGetCurrentVersion = vi.mocked(getCurrentVersion);
 const mockDetectDefaultBranch = vi.mocked(detectDefaultBranch);
 
 describe("init", () => {
-  let mockExit: ReturnType<typeof vi.spyOn>;
-  let mockChdir: ReturnType<typeof vi.spyOn>;
   let consoleSpy: ReturnType<typeof vi.spyOn>;
-  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockExit = vi.spyOn(process, "exit").mockImplementation(() => {
+    vi.spyOn(process, "exit").mockImplementation(() => {
       throw new Error("process.exit");
     });
-    mockChdir = vi.spyOn(process, "chdir").mockImplementation(() => {});
+    vi.spyOn(process, "chdir").mockImplementation(() => {});
     consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
 
     // Mock Bun.write and Bun.file
     (globalThis as any).Bun = {
