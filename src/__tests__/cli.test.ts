@@ -141,9 +141,9 @@ describe("cli", () => {
     const rmConfig = mockDefineCommand.mock.calls.find(
       (call) => call[0].meta?.name === "rm"
     )?.[0];
-    await rmConfig?.run?.({ args: { name: "feature", force: true } });
+    await rmConfig?.run?.({ args: { name: "feature", force: true, _: ["extra"] } });
 
-    expect(rm).toHaveBeenCalledWith("feature", { force: true });
+    expect(rm).toHaveBeenCalledWith(["feature", "extra"], { force: true });
   });
 
   test("list command runs with options", async () => {

@@ -319,6 +319,274 @@ describe("list", () => {
     expect(consoleSpy).toHaveBeenCalledWith("feature");
   });
 
+  // --- filter tests ---
+
+  async function setupFilterTest(worktrees: any[], responses: Record<string, any>) {
+    mockCheckGwtSetup.mockReturnValue({ ok: true });
+    mockFindGwtRoot.mockReturnValue("/project");
+    mockParseWorktreeList.mockReturnValue(worktrees);
+    mockFormatAge.mockReturnValue("");
+
+    const { $ } = await import("bun");
+    vi.mocked($).mockImplementation((strings: any, ...values: any[]) => {
+      const cmd = strings.reduce((acc: string, s: string, i: number) => acc + s + (values[i] ?? ""), "");
+      for (const [pattern, response] of Object.entries(responses)) {
+        if (cmd.includes(pattern)) {
+          return {
+            quiet: () => ({
+              nothrow: () => Promise.resolve(
+                typeof response === "function" ? response(cmd) : response,
+              ),
+            }),
+          } as any;
+        }
+      }
+      return {
+        quiet: () => ({
+          nothrow: () => Promise.resolve({ exitCode: 0, stdout: { toString: () => "" }, stderr: { toString: () => "" } }),
+        }),
+      } as any;
+    });
+  }
+
+  test("--synced outputs only worktrees in sync with remote", async () => {
+    await setupFilterTest([
+      { path: "/project/.bare", name: ".bare", branch: null, isBare: true },
+      { path: "/project/master", name: "master", commit: "abc1234", branch: "master", isBare: false },
+      { path: "/project/feature", name: "feature", commit: "def5678", branch: "feature", isBare: false },
+      { path: "/project/wip", name: "wip", commit: "ghi9012", branch: "wip", isBare: false },
+    ], {
+      "fetch --all": { exitCode: 0 },
+      "status --porcelain": { exitCode: 0, stdout: { toString: () => "" } },
+      "refs/heads/master": { exitCode: 0, stdout: { toString: () => "origin/master" } },
+      "refs/heads/feature": { exitCode: 0, stdout: { toString: () => "origin/feature" } },
+      "refs/heads/wip": { exitCode: 0, stdout: { toString: () => "" } },
+      "rev-list --count": { exitCode: 0, stdout: { toString: () => "0" } },
+    });
+
+    await list({ synced: true, names: true, noFetch: true });
+
+    expect(consoleSpy).toHaveBeenCalledWith("master");
+    expect(consoleSpy).toHaveBeenCalledWith("feature");
+    expect(consoleSpy).not.toHaveBeenCalledWith("wip");
+  });
+
+  test("--ahead outputs only worktrees ahead of remote", async () => {
+    await setupFilterTest([
+      { path: "/project/master", name: "master", commit: "abc", branch: "master", isBare: false },
+      { path: "/project/feature", name: "feature", commit: "def", branch: "feature", isBare: false },
+    ], {
+      "status --porcelain": { exitCode: 0, stdout: { toString: () => "" } },
+      "refs/heads/master": { exitCode: 0, stdout: { toString: () => "origin/master" } },
+      "refs/heads/feature": { exitCode: 0, stdout: { toString: () => "origin/feature" } },
+      "rev-list --count": (cmd: string) => {
+        if (cmd.includes("/project/feature") && cmd.includes("origin/feature..HEAD")) {
+          return { exitCode: 0, stdout: { toString: () => "3" } };
+        }
+        return { exitCode: 0, stdout: { toString: () => "0" } };
+      },
+    });
+
+    await list({ ahead: true, names: true, noFetch: true });
+
+    expect(consoleSpy).toHaveBeenCalledTimes(1);
+    expect(consoleSpy).toHaveBeenCalledWith("feature");
+  });
+
+  test("--behind outputs only worktrees behind remote", async () => {
+    await setupFilterTest([
+      { path: "/project/master", name: "master", commit: "abc", branch: "master", isBare: false },
+      { path: "/project/old", name: "old", commit: "def", branch: "old", isBare: false },
+    ], {
+      "status --porcelain": { exitCode: 0, stdout: { toString: () => "" } },
+      "refs/heads/master": { exitCode: 0, stdout: { toString: () => "origin/master" } },
+      "refs/heads/old": { exitCode: 0, stdout: { toString: () => "origin/old" } },
+      "rev-list --count": (cmd: string) => {
+        if (cmd.includes("/project/old") && cmd.includes("HEAD..origin/old")) {
+          return { exitCode: 0, stdout: { toString: () => "2" } };
+        }
+        return { exitCode: 0, stdout: { toString: () => "0" } };
+      },
+    });
+
+    await list({ behind: true, names: true, noFetch: true });
+
+    expect(consoleSpy).toHaveBeenCalledTimes(1);
+    expect(consoleSpy).toHaveBeenCalledWith("old");
+  });
+
+  test("--no-remote outputs only worktrees without upstream", async () => {
+    await setupFilterTest([
+      { path: "/project/master", name: "master", commit: "abc", branch: "master", isBare: false },
+      { path: "/project/local", name: "local", commit: "def", branch: "local", isBare: false },
+    ], {
+      "status --porcelain": { exitCode: 0, stdout: { toString: () => "" } },
+      "refs/heads/master": { exitCode: 0, stdout: { toString: () => "origin/master" } },
+      "refs/heads/local": { exitCode: 0, stdout: { toString: () => "" } },
+      "rev-list --count": { exitCode: 0, stdout: { toString: () => "0" } },
+    });
+
+    await list({ noRemote: true, names: true, noFetch: true });
+
+    expect(consoleSpy).toHaveBeenCalledTimes(1);
+    expect(consoleSpy).toHaveBeenCalledWith("local");
+  });
+
+  test("--dirty outputs only worktrees with uncommitted changes", async () => {
+    await setupFilterTest([
+      { path: "/project/clean-wt", name: "clean-wt", commit: "abc", branch: "clean-wt", isBare: false },
+      { path: "/project/dirty-wt", name: "dirty-wt", commit: "def", branch: "dirty-wt", isBare: false },
+    ], {
+      "status --porcelain": (cmd: string) => {
+        if (cmd.includes("/project/dirty-wt")) {
+          return { exitCode: 0, stdout: { toString: () => " M file.ts" } };
+        }
+        return { exitCode: 0, stdout: { toString: () => "" } };
+      },
+    });
+
+    await list({ dirty: true, names: true });
+
+    expect(consoleSpy).toHaveBeenCalledTimes(1);
+    expect(consoleSpy).toHaveBeenCalledWith("dirty-wt");
+  });
+
+  test("--clean outputs only worktrees without uncommitted changes", async () => {
+    await setupFilterTest([
+      { path: "/project/clean-wt", name: "clean-wt", commit: "abc", branch: "clean-wt", isBare: false },
+      { path: "/project/dirty-wt", name: "dirty-wt", commit: "def", branch: "dirty-wt", isBare: false },
+    ], {
+      "status --porcelain": (cmd: string) => {
+        if (cmd.includes("/project/dirty-wt")) {
+          return { exitCode: 0, stdout: { toString: () => " M file.ts" } };
+        }
+        return { exitCode: 0, stdout: { toString: () => "" } };
+      },
+    });
+
+    await list({ clean: true, names: true });
+
+    expect(consoleSpy).toHaveBeenCalledTimes(1);
+    expect(consoleSpy).toHaveBeenCalledWith("clean-wt");
+  });
+
+  test("--clean --synced combines filters with AND", async () => {
+    await setupFilterTest([
+      { path: "/project/a", name: "a", commit: "1", branch: "a", isBare: false },
+      { path: "/project/b", name: "b", commit: "2", branch: "b", isBare: false },
+      { path: "/project/c", name: "c", commit: "3", branch: "c", isBare: false },
+    ], {
+      "status --porcelain": (cmd: string) => {
+        if (cmd.includes("/project/b")) {
+          return { exitCode: 0, stdout: { toString: () => " M file.ts" } };
+        }
+        return { exitCode: 0, stdout: { toString: () => "" } };
+      },
+      "refs/heads/a": { exitCode: 0, stdout: { toString: () => "origin/a" } },
+      "refs/heads/b": { exitCode: 0, stdout: { toString: () => "origin/b" } },
+      "refs/heads/c": { exitCode: 0, stdout: { toString: () => "" } },
+      "rev-list --count": { exitCode: 0, stdout: { toString: () => "0" } },
+    });
+
+    await list({ clean: true, synced: true, names: true, noFetch: true });
+
+    // a: clean + synced = yes
+    // b: dirty + synced = no (dirty fails --clean)
+    // c: clean + no-remote = no (no-remote fails --synced)
+    expect(consoleSpy).toHaveBeenCalledTimes(1);
+    expect(consoleSpy).toHaveBeenCalledWith("a");
+  });
+
+  test("--synced fetches by default", async () => {
+    let fetchCalled = false;
+    await setupFilterTest([
+      { path: "/project/master", name: "master", commit: "abc", branch: "master", isBare: false },
+    ], {
+      "fetch --all": (() => { fetchCalled = true; return { exitCode: 0 }; })(),
+      "status --porcelain": { exitCode: 0, stdout: { toString: () => "" } },
+      "refs/heads/master": { exitCode: 0, stdout: { toString: () => "origin/master" } },
+      "rev-list --count": { exitCode: 0, stdout: { toString: () => "0" } },
+    });
+
+    // Need to re-mock to track fetch
+    const { $ } = await import("bun");
+    const originalImpl = vi.mocked($).getMockImplementation();
+    vi.mocked($).mockImplementation((strings: TemplateStringsArray, ...values: any[]) => {
+      const cmd = strings.reduce((acc: string, s: string, i: number) => acc + s + (values[i] ?? ""), "");
+      if (cmd.includes("fetch --all")) fetchCalled = true;
+      return originalImpl!(strings, ...values);
+    });
+
+    await list({ synced: true, names: true });
+
+    expect(fetchCalled).toBe(true);
+  });
+
+  test("--no-fetch skips fetching", async () => {
+    let fetchCalled = false;
+    await setupFilterTest([
+      { path: "/project/master", name: "master", commit: "abc", branch: "master", isBare: false },
+    ], {
+      "status --porcelain": { exitCode: 0, stdout: { toString: () => "" } },
+      "refs/heads/master": { exitCode: 0, stdout: { toString: () => "origin/master" } },
+      "rev-list --count": { exitCode: 0, stdout: { toString: () => "0" } },
+    });
+
+    const { $ } = await import("bun");
+    const originalImpl = vi.mocked($).getMockImplementation();
+    vi.mocked($).mockImplementation((strings: TemplateStringsArray, ...values: any[]) => {
+      const cmd = strings.reduce((acc: string, s: string, i: number) => acc + s + (values[i] ?? ""), "");
+      if (cmd.includes("fetch --all")) fetchCalled = true;
+      return originalImpl!(strings, ...values);
+    });
+
+    await list({ synced: true, names: true, noFetch: true });
+
+    expect(fetchCalled).toBe(false);
+  });
+
+  test("filters show 'No matching worktrees' when nothing matches", async () => {
+    await setupFilterTest([
+      { path: "/project/feature", name: "feature", commit: "abc", branch: "feature", isBare: false },
+    ], {
+      "status --porcelain": { exitCode: 0, stdout: { toString: () => " M file.ts" } },
+    });
+
+    await list({ clean: true });
+
+    expect(consoleSpy).toHaveBeenCalledWith("No matching worktrees");
+  });
+
+  test("--json includes sync field when sync filters active", async () => {
+    await setupFilterTest([
+      { path: "/project/feature", name: "feature", commit: "abc1234567890", branch: "feature", isBare: false },
+    ], {
+      "status --porcelain": { exitCode: 0, stdout: { toString: () => "" } },
+      "refs/heads/feature": { exitCode: 0, stdout: { toString: () => "origin/feature" } },
+      "rev-list --count": { exitCode: 0, stdout: { toString: () => "0" } },
+    });
+
+    await list({ synced: true, json: true, noFetch: true });
+
+    const output = consoleSpy.mock.calls[0][0];
+    const parsed = JSON.parse(output);
+    expect(parsed[0].sync).toBe("synced");
+  });
+
+  test("table output shows sync status flags", async () => {
+    await setupFilterTest([
+      { path: "/project/feature", name: "feature", commit: "abc1234", branch: "feature", isBare: false },
+    ], {
+      "status --porcelain": { exitCode: 0, stdout: { toString: () => "" } },
+      "refs/heads/feature": { exitCode: 0, stdout: { toString: () => "" } },
+      "rev-list --count": { exitCode: 0, stdout: { toString: () => "0" } },
+    });
+
+    await list({ noRemote: true });
+
+    expect(consoleSpy).toHaveBeenCalledWith("feature  abc1234  feature  [no-remote]");
+  });
+
   test("handles stat errors gracefully", async () => {
     mockCheckGwtSetup.mockReturnValue({ ok: true });
     mockFindGwtRoot.mockReturnValue("/project");

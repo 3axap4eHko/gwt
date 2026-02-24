@@ -115,16 +115,18 @@ gwt add existing-branch         # Tracks remote if exists
 gwt add quick-fix -n            # Skip fetching remotes
 ```
 
-### `gwt rm <name> [-f, --force]`
+### `gwt rm <name...> [-f, --force]`
 
-Remove a worktree. By default, checks for uncommitted changes and unpushed commits.
+Remove one or more worktrees. By default, checks for uncommitted changes and unpushed commits. When removing multiple worktrees, continues past failures and reports a summary.
 
 ```bash
 gwt rm feature-done
-gwt rm feature-wip -f  # Skip safety checks
+gwt rm feature-wip -f           # Skip safety checks
+gwt rm a b c                    # Remove multiple worktrees
+gwt rm $(gwt list --synced --names)  # Remove all synced worktrees
 ```
 
-### `gwt list [--json] [--names]`
+### `gwt list [--json] [--names] [filters]`
 
 List all worktrees with branch, commit, dirty status, locked status, and age.
 
@@ -132,6 +134,25 @@ List all worktrees with branch, commit, dirty status, locked status, and age.
 gwt list          # Table output
 gwt list --json   # JSON output for scripting
 gwt list --names  # Bare names, one per line
+```
+
+Filters narrow the output. Multiple filters AND together. Sync-related filters fetch all remotes by default (skip with `-n`/`--no-fetch`).
+
+```bash
+# Working tree status
+gwt list --clean              # No uncommitted changes
+gwt list --dirty              # Has uncommitted changes
+
+# Remote sync status
+gwt list --synced             # In sync with remote (0 ahead, 0 behind)
+gwt list --ahead              # Commits ahead of remote
+gwt list --behind             # Commits behind remote
+gwt list --no-remote          # No remote tracking branch
+
+# Combine filters
+gwt list --clean --synced --names   # Safe to remove, pipe to xargs
+gwt list --dirty --json             # Dirty worktrees as JSON
+gwt list --synced -n                # Skip fetch, use local refs
 ```
 
 ### `gwt cd [name]`

@@ -54,9 +54,9 @@ export async function add(name: string, options: AddOptions = {}): Promise<void>
     console.log(`Creating worktree '${name}' tracking remote branch...`);
     cmd = ["git", "worktree", "add", "--track", "-b", name, name, remoteRef];
   } else {
-    // New branch
+    const startPoint = await resolveStartPoint(fromBranch);
     console.log(`Creating worktree '${name}' as new branch from '${fromBranch}'...`);
-    cmd = ["git", "worktree", "add", "-b", name, name, fromBranch];
+    cmd = ["git", "worktree", "add", "-b", name, name, startPoint];
   }
 
   const result = await $`${cmd}`.quiet().nothrow();
@@ -102,4 +102,10 @@ async function findRemoteBranch(name: string): Promise<string | null> {
 async function branchExistsLocally(name: string): Promise<boolean> {
   const result = await $`git show-ref --verify refs/heads/${name}`.quiet().nothrow();
   return result.exitCode === 0;
+}
+
+async function resolveStartPoint(branch: string): Promise<string> {
+  const remoteRef = await findRemoteBranch(branch);
+  if (remoteRef) return remoteRef;
+  return branch;
 }

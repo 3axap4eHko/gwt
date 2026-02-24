@@ -27,6 +27,7 @@ const mockIsValidWorktreeName = vi.mocked(isValidWorktreeName);
 
 describe("rm", () => {
   let consoleSpy: ReturnType<typeof vi.spyOn>;
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -35,7 +36,7 @@ describe("rm", () => {
     });
     vi.spyOn(process, "chdir").mockImplementation(() => {});
     consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-    vi.spyOn(console, "error").mockImplementation(() => {});
+    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
   test("exits with error for invalid worktree name", async () => {
@@ -57,7 +58,8 @@ describe("rm", () => {
     mockFindGwtRoot.mockReturnValue("/project");
     mockExistsSync.mockReturnValue(false);
 
-    await expect(rm("feature")).rejects.toThrow("Error: Worktree 'feature' not found");
+    await expect(rm("feature")).rejects.toThrow("Failed to remove 1 worktree");
+    expect(consoleErrorSpy).toHaveBeenCalledWith("Error: Worktree 'feature' not found");
   });
 
   test("blocks removal of default branch without force", async () => {
@@ -78,7 +80,8 @@ describe("rm", () => {
       }),
     } as any);
 
-    await expect(rm("master")).rejects.toThrow("Cannot remove worktree due to safety checks");
+    await expect(rm("master")).rejects.toThrow("Failed to remove 1 worktree");
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("Cannot remove 'master' due to safety checks"));
   });
 
   test("blocks removal with uncommitted changes", async () => {
@@ -99,7 +102,8 @@ describe("rm", () => {
       }),
     } as any);
 
-    await expect(rm("feature")).rejects.toThrow("Uncommitted changes in worktree");
+    await expect(rm("feature")).rejects.toThrow("Failed to remove 1 worktree");
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("Uncommitted changes in worktree"));
   });
 
   test("blocks removal when not pushed to remote", async () => {
@@ -121,7 +125,8 @@ describe("rm", () => {
       }),
     } as any);
 
-    await expect(rm("feature")).rejects.toThrow("Branch 'feature' not pushed to remote");
+    await expect(rm("feature")).rejects.toThrow("Failed to remove 1 worktree");
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("Branch 'feature' not pushed to remote"));
   });
 
   test("blocks removal with unpushed commits", async () => {
@@ -151,7 +156,8 @@ describe("rm", () => {
       }),
     } as any);
 
-    await expect(rm("feature")).rejects.toThrow("2 unpushed commits");
+    await expect(rm("feature")).rejects.toThrow("Failed to remove 1 worktree");
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("2 unpushed commits"));
   });
 
   test("blocks removal when behind remote", async () => {
@@ -181,7 +187,8 @@ describe("rm", () => {
       }),
     } as any);
 
-    await expect(rm("feature")).rejects.toThrow("3 commits behind remote");
+    await expect(rm("feature")).rejects.toThrow("Failed to remove 1 worktree");
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("3 commits behind remote"));
   });
 
   test("blocks removal when rev-list commands fail", async () => {
@@ -211,9 +218,9 @@ describe("rm", () => {
       }),
     } as any);
 
-    const error = await rm("feature").catch((e: Error) => e);
-    expect(error.message).toContain("Failed to check unpushed commits");
-    expect(error.message).toContain("Failed to check commits behind remote");
+    await expect(rm("feature")).rejects.toThrow("Failed to remove 1 worktree");
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("Failed to check unpushed commits"));
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("Failed to check commits behind remote"));
   });
 
   test("removes worktree successfully", async () => {
@@ -333,7 +340,8 @@ describe("rm", () => {
       }),
     } as any);
 
-    await expect(rm("feature", { force: true })).rejects.toThrow("Error: Failed to remove worktree");
+    await expect(rm("feature", { force: true })).rejects.toThrow("Failed to remove 1 worktree");
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("Error: Failed to remove worktree 'feature'"));
   });
 
   test("exits when remove fails without force", async () => {
@@ -365,7 +373,8 @@ describe("rm", () => {
       }),
     } as any);
 
-    await expect(rm("feature")).rejects.toThrow("Use --force to override");
+    await expect(rm("feature")).rejects.toThrow("Failed to remove 1 worktree");
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("Use --force to override"));
   });
 
   test("handles singular commit message", async () => {
@@ -395,9 +404,9 @@ describe("rm", () => {
       }),
     } as any);
 
-    const error = await rm("feature").catch((e: Error) => e);
-    expect(error.message).toContain("1 unpushed commit");
-    expect(error.message).toContain("1 commit behind remote");
+    await expect(rm("feature")).rejects.toThrow("Failed to remove 1 worktree");
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("1 unpushed commit"));
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("1 commit behind remote"));
   });
 
   test("uses configured upstream remote over origin", async () => {
@@ -486,6 +495,67 @@ describe("rm", () => {
       }),
     } as any);
 
-    await expect(rm("local-only")).rejects.toThrow("Branch 'local-only' not pushed to remote");
+    await expect(rm("local-only")).rejects.toThrow("Failed to remove 1 worktree");
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("Branch 'local-only' not pushed to remote"));
+  });
+
+  test("removes multiple worktrees", async () => {
+    mockIsValidWorktreeName.mockReturnValue(true);
+    mockCheckGwtSetup.mockReturnValue({ ok: true });
+    mockFindGwtRoot.mockReturnValue("/project");
+    mockExistsSync.mockReturnValue(true);
+    mockGetDefaultBranch.mockReturnValue(null);
+
+    const { $ } = await import("bun");
+    vi.mocked($).mockReturnValue({
+      quiet: () => ({
+        nothrow: () =>
+          Promise.resolve({
+            exitCode: 0,
+            stdout: { toString: () => "" },
+            stderr: { toString: () => "" },
+          }),
+      }),
+    } as any);
+
+    await rm(["a", "b", "c"], { force: true });
+
+    expect(consoleSpy).toHaveBeenCalledWith("Done! Worktree 'a' removed");
+    expect(consoleSpy).toHaveBeenCalledWith("Done! Worktree 'b' removed");
+    expect(consoleSpy).toHaveBeenCalledWith("Done! Worktree 'c' removed");
+  });
+
+  test("continues removing after individual failure", async () => {
+    mockIsValidWorktreeName.mockReturnValue(true);
+    mockCheckGwtSetup.mockReturnValue({ ok: true });
+    mockFindGwtRoot.mockReturnValue("/project");
+    mockExistsSync.mockImplementation((p: any) => !String(p).includes("missing"));
+    mockGetDefaultBranch.mockReturnValue(null);
+
+    const { $ } = await import("bun");
+    vi.mocked($).mockReturnValue({
+      quiet: () => ({
+        nothrow: () =>
+          Promise.resolve({
+            exitCode: 0,
+            stdout: { toString: () => "" },
+            stderr: { toString: () => "" },
+          }),
+      }),
+    } as any);
+
+    await expect(rm(["good", "missing", "also-good"], { force: true })).rejects.toThrow("Failed to remove 1 worktree");
+    expect(consoleSpy).toHaveBeenCalledWith("Done! Worktree 'good' removed");
+    expect(consoleErrorSpy).toHaveBeenCalledWith("Error: Worktree 'missing' not found");
+    expect(consoleSpy).toHaveBeenCalledWith("Done! Worktree 'also-good' removed");
+  });
+
+  test("reports count when multiple removals fail", async () => {
+    mockIsValidWorktreeName.mockReturnValue(true);
+    mockCheckGwtSetup.mockReturnValue({ ok: true });
+    mockFindGwtRoot.mockReturnValue("/project");
+    mockExistsSync.mockReturnValue(false);
+
+    await expect(rm(["a", "b"], { force: true })).rejects.toThrow("Failed to remove 2 worktrees");
   });
 });

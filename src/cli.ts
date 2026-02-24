@@ -81,12 +81,12 @@ const addCmd = defineCommand({
 const rmCmd = defineCommand({
   meta: {
     name: "rm",
-    description: "Remove worktree",
+    description: "Remove worktree(s)",
   },
   args: {
     name: {
       type: "positional",
-      description: "Worktree name",
+      description: "Worktree name(s)",
       required: true,
     },
     force: {
@@ -97,7 +97,8 @@ const rmCmd = defineCommand({
     },
   },
   run({ args }) {
-    return rm(args.name, { force: args.force });
+    const names = [args.name, ...(args._ as string[] || [])];
+    return rm(names, { force: args.force });
   },
 });
 
@@ -117,9 +118,55 @@ const listCmd = defineCommand({
       description: "Output only worktree names",
       default: false,
     },
+    clean: {
+      type: "boolean",
+      description: "Only worktrees with no uncommitted changes",
+      default: false,
+    },
+    dirty: {
+      type: "boolean",
+      description: "Only worktrees with uncommitted changes",
+      default: false,
+    },
+    synced: {
+      type: "boolean",
+      description: "Only worktrees in sync with remote",
+      default: false,
+    },
+    ahead: {
+      type: "boolean",
+      description: "Only worktrees ahead of remote",
+      default: false,
+    },
+    behind: {
+      type: "boolean",
+      description: "Only worktrees behind remote",
+      default: false,
+    },
+    "no-remote": {
+      type: "boolean",
+      description: "Only worktrees without a remote tracking branch",
+      default: false,
+    },
+    "no-fetch": {
+      type: "boolean",
+      alias: "n",
+      description: "Skip fetching remotes",
+      default: false,
+    },
   },
   run({ args }) {
-    return list({ json: args.json, names: args.names });
+    return list({
+      json: args.json,
+      names: args.names,
+      clean: args.clean,
+      dirty: args.dirty,
+      synced: args.synced,
+      ahead: args.ahead,
+      behind: args.behind,
+      noRemote: args["no-remote"],
+      noFetch: args["no-fetch"],
+    });
   },
 });
 
@@ -364,6 +411,7 @@ const main = defineCommand({
     add: addCmd,
     rm: rmCmd,
     list: listCmd,
+    ls: listCmd,
     lock: lockCmd,
     unlock: unlockCmd,
     move: moveCmd,

@@ -1,4 +1,4 @@
-const SUBCOMMANDS = "clone init add rm list lock unlock move cd edit run sync pr mr shell install update";
+const SUBCOMMANDS = "clone init add rm list ls lock unlock move cd edit run sync pr mr shell install update";
 const WT_COMMANDS = "cd edit rm sync pr mr lock unlock move run";
 
 const BASH_ZSH = `

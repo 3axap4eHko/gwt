@@ -8,9 +8,17 @@ interface RmOptions {
   force?: boolean;
 }
 
-export async function rm(name: string, options: RmOptions = {}): Promise<void> {
-  if (!isValidWorktreeName(name)) {
-    throw new Error("Error: Invalid worktree name");
+export async function rm(names: string | string[], options: RmOptions = {}): Promise<void> {
+  const nameList = Array.isArray(names) ? names : [names];
+
+  if (nameList.length === 0) {
+    throw new Error("Error: No worktree names provided");
+  }
+
+  for (const name of nameList) {
+    if (!isValidWorktreeName(name)) {
+      throw new Error(`Error: Invalid worktree name '${name}'`);
+    }
   }
 
   const check = checkGwtSetup();
@@ -19,21 +27,35 @@ export async function rm(name: string, options: RmOptions = {}): Promise<void> {
   }
 
   const root = findGwtRoot()!;
+  process.chdir(root);
 
+  let failed = 0;
+  for (const name of nameList) {
+    try {
+      await rmOne(name, root, options);
+    } catch (err) {
+      failed++;
+      console.error(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  if (failed > 0) {
+    throw new Error(`Failed to remove ${failed} worktree${failed > 1 ? "s" : ""}`);
+  }
+}
+
+async function rmOne(name: string, root: string, options: RmOptions): Promise<void> {
   const worktreePath = resolve(root, name);
 
   if (!existsSync(worktreePath)) {
     throw new Error(`Error: Worktree '${name}' not found`);
   }
 
-  process.chdir(root);
-
-  // Safety checks (skip with --force)
   if (!options.force) {
     const issues = await checkSafety(name, worktreePath);
     if (issues.length > 0) {
       const lines = [
-        "Cannot remove worktree due to safety checks:\n",
+        `Cannot remove '${name}' due to safety checks:\n`,
         ...issues.map(issue => `  - ${issue}`),
         "\nUse --force to override (at your own risk)",
       ];
@@ -41,26 +63,22 @@ export async function rm(name: string, options: RmOptions = {}): Promise<void> {
     }
   }
 
-  // Remove worktree
   console.log(`Removing worktree '${name}'...`);
   const result = await $`git worktree remove ${name}`.quiet().nothrow();
 
   if (result.exitCode !== 0) {
-    // Try with --force if regular remove fails (e.g., untracked files)
     if (options.force) {
       const forceResult = await $`git worktree remove --force ${name}`.quiet().nothrow();
       if (forceResult.exitCode !== 0) {
-        throw new Error(`Error: Failed to remove worktree\n${forceResult.stderr.toString()}`);
+        throw new Error(`Error: Failed to remove worktree '${name}'\n${forceResult.stderr.toString()}`);
       }
     } else {
-      throw new Error(`Error: Failed to remove worktree\n${result.stderr.toString()}\n\nUse --force to override`);
+      throw new Error(`Error: Failed to remove worktree '${name}'\n${result.stderr.toString()}\n\nUse --force to override`);
     }
   }
 
-  // Delete branch if it was created by gwt (not a tracking branch)
   const branchDeleted = await tryDeleteBranch(name);
 
-  console.log("");
   console.log(`Done! Worktree '${name}' removed`);
   if (branchDeleted) {
     console.log(`  Branch '${name}' also deleted`);
