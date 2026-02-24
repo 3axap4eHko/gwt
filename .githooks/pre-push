@@ -8,7 +8,8 @@ while read local_ref local_sha remote_ref remote_sha; do
         exit 1
       fi
 
-      status=$(gh run list --commit "$local_sha" --json conclusion -q '.[0].conclusion' 2>/dev/null)
+      commit_sha=$(git rev-parse "${local_sha}^{commit}" 2>/dev/null || echo "$local_sha")
+      status=$(gh run list --commit "$commit_sha" --json conclusion -q '.[0].conclusion' 2>/dev/null)
 
       if [ -z "$status" ]; then
         echo "Error: No CI run found for commit $local_sha"
