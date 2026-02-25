@@ -110,36 +110,43 @@ const listCmd = defineCommand({
   args: {
     json: {
       type: "boolean",
+      alias: "j",
       description: "Output as JSON",
       default: false,
     },
     names: {
       type: "boolean",
+      alias: "n",
       description: "Output only worktree names",
       default: false,
     },
     clean: {
       type: "boolean",
+      alias: "c",
       description: "Only worktrees with no uncommitted changes",
       default: false,
     },
     dirty: {
       type: "boolean",
+      alias: "d",
       description: "Only worktrees with uncommitted changes",
       default: false,
     },
     synced: {
       type: "boolean",
+      alias: "s",
       description: "Only worktrees in sync with remote",
       default: false,
     },
     ahead: {
       type: "boolean",
+      alias: "a",
       description: "Only worktrees ahead of remote",
       default: false,
     },
     behind: {
       type: "boolean",
+      alias: "b",
       description: "Only worktrees behind remote",
       default: false,
     },
@@ -150,7 +157,7 @@ const listCmd = defineCommand({
     },
     "no-fetch": {
       type: "boolean",
-      alias: "n",
+      alias: "F",
       description: "Skip fetching remotes",
       default: false,
     },
