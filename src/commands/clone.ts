@@ -1,7 +1,7 @@
 import { $ } from "bun";
 import { existsSync, mkdirSync } from "fs";
 import { basename, resolve } from "path";
-import { getCurrentVersion, detectDefaultBranch } from "../core/repo";
+import { getCurrentVersion, detectDefaultBranch, debug } from "../core/repo";
 import agentsMdPath from "../templates/AGENTS.md" with { type: "file" };
 
 export async function clone(url: string, dest?: string): Promise<void> {
@@ -12,6 +12,7 @@ export async function clone(url: string, dest?: string): Promise<void> {
     throw new Error(`Error: Directory '${repoName}' already exists`);
   }
 
+  debug("clone", { url, repoName, targetDir });
   console.log(`Cloning ${url} into ${repoName}/`);
 
   mkdirSync(targetDir, { recursive: true });

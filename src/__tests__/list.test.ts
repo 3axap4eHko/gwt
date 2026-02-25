@@ -6,6 +6,7 @@ vi.mock("../core/repo", () => ({
   findGwtRoot: vi.fn(),
   parseWorktreeList: vi.fn(),
   formatAge: vi.fn(),
+  debug: vi.fn(),
 }));
 
 import { checkGwtSetup, findGwtRoot, parseWorktreeList, formatAge } from "../core/repo";

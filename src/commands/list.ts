@@ -1,5 +1,5 @@
 import { $ } from "bun";
-import { findGwtRoot, checkGwtSetup, parseWorktreeList, formatAge } from "../core/repo";
+import { findGwtRoot, checkGwtSetup, parseWorktreeList, formatAge, debug } from "../core/repo";
 
 interface ListOptions {
   json?: boolean;
@@ -83,6 +83,7 @@ export async function list(options: ListOptions = {}): Promise<void> {
       const [statusResult, stat] = await Promise.all([statusPromise, statPromise]);
       const dirty = statusResult.exitCode === 0 && statusResult.stdout.toString().trim().length > 0;
       const mtime = stat?.mtime?.getTime() ?? 0;
+      debug("list", { name: wt.name, dirty, syncStatus });
       return { ...wt, dirty, mtime, syncStatus, syncChecked };
     })
   );

@@ -1,7 +1,7 @@
 import { $ } from "bun";
 import { existsSync } from "fs";
 import { resolve } from "path";
-import { findGwtRoot, getDefaultBranch, checkGwtSetup } from "../core/repo";
+import { findGwtRoot, getDefaultBranch, checkGwtSetup, debug } from "../core/repo";
 import { isValidWorktreeName } from "../core/validation";
 
 interface RmOptions {
@@ -140,6 +140,7 @@ async function checkSafety(name: string, worktreePath: string): Promise<string[]
     issues.push("Uncommitted changes in worktree");
   }
 
+  debug("rm safety", { name, trackingRef });
   if (!trackingRef) {
     issues.push(`Branch '${name}' not pushed to remote`);
   } else {

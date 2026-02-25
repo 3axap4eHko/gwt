@@ -2,6 +2,12 @@ import { $ } from "bun";
 import { existsSync, readFileSync } from "fs";
 import { basename, dirname, parse, resolve } from "path";
 
+const DEBUG = !!process.env.GWT_DEBUG;
+
+export function debug(...args: unknown[]): void {
+  if (DEBUG) console.error("[gwt]", ...args);
+}
+
 export interface Worktree {
   path: string;
   name: string;

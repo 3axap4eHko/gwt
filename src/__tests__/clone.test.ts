@@ -9,6 +9,7 @@ vi.mock("fs", () => ({
 vi.mock("../core/repo", () => ({
   getCurrentVersion: vi.fn(() => "0.1.0"),
   detectDefaultBranch: vi.fn(() => Promise.resolve("master")),
+  debug: vi.fn(),
 }));
 
 import { existsSync, mkdirSync } from "fs";

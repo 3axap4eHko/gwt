@@ -1,5 +1,5 @@
 import { copyFileSync, chmodSync, unlinkSync } from "fs";
-import { getCurrentVersion } from "../core/repo";
+import { getCurrentVersion, debug } from "../core/repo";
 
 const REPO = "3axap4eHko/gwt";
 const TMP_PATH = "/tmp/gwt-update";
@@ -20,15 +20,19 @@ export async function update(): Promise<void> {
   const arch = ARCHS[process.arch];
   if (!arch) throw new Error(`Unsupported architecture: ${process.arch}`);
 
-  const response = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
+  const apiUrl = `https://api.github.com/repos/${REPO}/releases/latest`;
+  debug("fetch", apiUrl);
+  const response = await fetch(apiUrl, {
     headers: { "User-Agent": "gwt" },
   });
+  debug("response", response.status, response.statusText);
   if (!response.ok) throw new Error(`Failed to fetch latest release: ${response.status}`);
 
   const release = await response.json() as { tag_name: string };
   const latest = release.tag_name;
   const current = getCurrentVersion();
   const latestBare = latest.replace(/^v/, "");
+  debug("version", { current, latest: latestBare });
 
   if (latestBare === current) {
     console.log(`Already up to date (${current})`);
@@ -38,8 +42,10 @@ export async function update(): Promise<void> {
   const binaryName = `gwt-${os}-${arch}`;
   const url = `https://github.com/${REPO}/releases/download/${latest}/${binaryName}`;
 
+  debug("fetch", url);
   console.log(`Downloading gwt ${latest} (${os}-${arch})...`);
   const binary = await fetch(url);
+  debug("response", binary.status, binary.statusText);
   if (!binary.ok) throw new Error(`Failed to download binary: ${binary.status}`);
 
   try {
@@ -53,5 +59,6 @@ export async function update(): Promise<void> {
     try { unlinkSync(TMP_PATH); } catch {}
   }
 
+  debug("replaced", process.execPath);
   console.log(`Updated gwt ${current} -> ${latestBare}`);
 }

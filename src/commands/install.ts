@@ -1,5 +1,6 @@
 import { copyFileSync, chmodSync, existsSync, mkdirSync, readFileSync, appendFileSync, statSync } from "fs";
 import { resolve } from "path";
+import { debug } from "../core/repo";
 
 const RC_FILES: Record<string, string> = {
   zsh: ".zshrc",
@@ -45,6 +46,8 @@ export function install(dir?: string): void {
   const shell = detectShell();
   const rcName = RC_FILES[shell];
   const rcPath = rcName ? resolve(home, rcName) : null;
+
+  debug("install", { src, dest, installDir, shell, rcPath });
 
   const actions: string[] = [];
 

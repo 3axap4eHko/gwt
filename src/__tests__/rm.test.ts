@@ -9,6 +9,7 @@ vi.mock("../core/repo", () => ({
   checkGwtSetup: vi.fn(),
   findGwtRoot: vi.fn(),
   getDefaultBranch: vi.fn(),
+  debug: vi.fn(),
 }));
 
 vi.mock("../core/validation", () => ({

@@ -1,7 +1,7 @@
 import { $ } from "bun";
 import { existsSync } from "fs";
 import { resolve } from "path";
-import { findGwtRoot, getDefaultBranch, checkGwtSetup } from "../core/repo";
+import { findGwtRoot, getDefaultBranch, checkGwtSetup, debug } from "../core/repo";
 import { isValidWorktreeName } from "../core/validation";
 
 interface AddOptions {
@@ -44,6 +44,7 @@ export async function add(name: string, options: AddOptions = {}): Promise<void>
     findRemoteBranch(name),
     branchExistsLocally(name),
   ]);
+  debug("add", { name, fromBranch, remoteRef, localBranchExists });
 
   let cmd: string[];
 
@@ -55,9 +56,12 @@ export async function add(name: string, options: AddOptions = {}): Promise<void>
     cmd = ["git", "worktree", "add", "--track", "-b", name, name, remoteRef];
   } else {
     const startPoint = await resolveStartPoint(fromBranch);
+    debug("add startPoint", startPoint);
     console.log(`Creating worktree '${name}' as new branch from '${fromBranch}'...`);
     cmd = ["git", "worktree", "add", "-b", name, name, startPoint];
   }
+
+  debug("exec", cmd.join(" "));
 
   const result = await $`${cmd}`.quiet().nothrow();
 

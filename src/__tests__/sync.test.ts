@@ -6,6 +6,7 @@ vi.mock("../core/repo", () => ({
   findGwtRoot: vi.fn(),
   getWorktrees: vi.fn(),
   formatAge: vi.fn(),
+  debug: vi.fn(),
 }));
 
 vi.mock("../commands/cd", () => ({

@@ -1,5 +1,5 @@
 import { $ } from "bun";
-import { findGwtRoot, checkGwtSetup, getWorktrees } from "../core/repo";
+import { findGwtRoot, checkGwtSetup, getWorktrees, debug } from "../core/repo";
 import { resolveWorktree, selectWorktree } from "./cd";
 
 interface SyncOptions {
@@ -30,6 +30,7 @@ export async function sync(name?: string, options: SyncOptions = {}): Promise<vo
 
   const wt = name ? resolveWorktree(worktrees, name) : await selectWorktree(worktrees);
 
+  debug("sync", { name: wt.name, path: wt.path, branch: wt.branch });
   console.log(`Syncing '${wt.name}'...`);
   const result = await $`git -C ${wt.path} pull --rebase`.quiet().nothrow();
 
