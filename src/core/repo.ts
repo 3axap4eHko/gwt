@@ -8,6 +8,34 @@ export function debug(...args: unknown[]): void {
   if (DEBUG) console.error("[gwt]", ...args);
 }
 
+export async function httpGet(url: string, headers?: Record<string, string>): Promise<Response> {
+  if (process.env.GWT_HTTP !== "curl") {
+    try {
+      const res = await fetch(url, headers ? { headers } : undefined);
+      debug("fetch", res.status, res.statusText, url);
+      return res;
+    } catch (err) {
+      debug("fetch failed:", (err as Error).message, "- falling back to curl");
+    }
+  }
+  const args = ["curl", "-fsSL"];
+  for (const [k, v] of Object.entries(headers ?? {})) {
+    args.push("-H", `${k}: ${v}`);
+  }
+  args.push(url);
+  debug("curl", args.join(" "));
+  const proc = Bun.spawn(args, { stdout: "pipe", stderr: "pipe" });
+  const [exitCode, stdout, stderr] = await Promise.all([
+    proc.exited,
+    new Response(proc.stdout).arrayBuffer(),
+    new Response(proc.stderr).text(),
+  ]);
+  if (exitCode !== 0) {
+    throw new Error(`curl failed (exit ${exitCode}): ${stderr.trim()}`);
+  }
+  return new Response(stdout);
+}
+
 export interface Worktree {
   path: string;
   name: string;
