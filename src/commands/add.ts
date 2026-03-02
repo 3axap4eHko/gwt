@@ -69,6 +69,14 @@ export async function add(name: string, options: AddOptions = {}): Promise<void>
     throw new Error(`Error: Failed to create worktree\n${result.stderr.toString()}`);
   }
 
+  if (localBranchExists && remoteRef) {
+    const hasUpstream = await $`git config branch.${name}.remote`.quiet().nothrow();
+    if (hasUpstream.exitCode !== 0) {
+      debug("setting upstream", `${name} -> ${remoteRef}`);
+      await $`git branch --set-upstream-to=${remoteRef} ${name}`.quiet().nothrow();
+    }
+  }
+
   console.log("");
   console.log(`Done! Worktree created at ${name}/`);
   console.log(`  cd ${name}`);

@@ -65,6 +65,9 @@ export async function clone(url: string, dest?: string): Promise<void> {
     throw new Error(`Error: Failed to create worktree\n${wtResult.stderr.toString()}`);
   }
 
+  // Set up upstream tracking (bare clone doesn't configure it)
+  await $`git branch --set-upstream-to=origin/${defaultBranch} ${defaultBranch}`.quiet().nothrow();
+
   // Create AGENTS.md
   const agentsMd = await Bun.file(agentsMdPath).text();
   await Bun.write("AGENTS.md", agentsMd);
