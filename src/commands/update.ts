@@ -43,7 +43,7 @@ export async function update(): Promise<void> {
   if (!binary.ok) throw new Error(`Failed to download binary: ${binary.status}`);
 
   try {
-    await Bun.write(TMP_PATH, binary);
+    await Bun.write(TMP_PATH, await binary.arrayBuffer());
     chmodSync(TMP_PATH, 0o755);
 
     try { unlinkSync(process.execPath); } catch {}
