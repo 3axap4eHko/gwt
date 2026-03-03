@@ -29,11 +29,13 @@ export async function add(name: string, options: AddOptions = {}): Promise<void>
 
   process.chdir(root);
 
+  const log = (msg: string) => process.stderr.write(msg + "\n");
+
   if (!options.noFetch) {
-    console.log("Fetching remotes...");
+    log("Fetching remotes...");
     const fetch = await $`git fetch --all`.quiet().nothrow();
     if (fetch.exitCode !== 0) {
-      console.error("Warning: Failed to fetch remotes");
+      log("Warning: Failed to fetch remotes");
     }
   }
 
@@ -49,16 +51,16 @@ export async function add(name: string, options: AddOptions = {}): Promise<void>
   let cmd: string[];
 
   if (localBranchExists) {
-    console.log(`Creating worktree '${name}' from existing branch...`);
+    log(`Creating worktree '${name}' from existing branch...`);
     cmd = ["git", "worktree", "add", name, name];
   } else if (remoteRef) {
-    console.log(`Creating worktree '${name}' tracking remote branch...`);
+    log(`Creating worktree '${name}' tracking remote branch...`);
     cmd = ["git", "worktree", "add", "--track", "-b", name, name, remoteRef];
   } else {
     const startPoint = await resolveStartPoint(fromBranch);
     debug("add startPoint", startPoint);
-    console.log(`Creating worktree '${name}' as new branch from '${fromBranch}'...`);
-    cmd = ["git", "worktree", "add", "-b", name, name, startPoint];
+    log(`Creating worktree '${name}' as new branch from '${fromBranch}'...`);
+    cmd = ["git", "worktree", "add", "--no-track", "-b", name, name, startPoint];
   }
 
   debug("exec", cmd.join(" "));
@@ -77,9 +79,8 @@ export async function add(name: string, options: AddOptions = {}): Promise<void>
     }
   }
 
-  console.log("");
-  console.log(`Done! Worktree created at ${name}/`);
-  console.log(`  cd ${name}`);
+  log(`Done! Worktree created at ${name}/`);
+  console.log(worktreePath);
 }
 
 async function findRemoteBranch(name: string): Promise<string | null> {

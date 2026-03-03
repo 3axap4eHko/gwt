@@ -4,7 +4,7 @@ const WT_COMMANDS = "cd edit rm sync pr mr lock unlock move run";
 const BASH_ZSH = `
 # gwt shell integration
 gwt() {
-  if [[ "$1" == "cd" || "$1" == "edit" ]]; then
+  if [[ "$1" == "cd" || "$1" == "edit" || "$1" == "add" ]]; then
     local dir
     dir="$(command gwt "$@")" && cd "$dir"
   else
@@ -30,7 +30,7 @@ complete -F _gwt_completions gwt
 const ZSH_ONLY = `
 # gwt shell integration
 gwt() {
-  if [[ "$1" == "cd" || "$1" == "edit" ]]; then
+  if [[ "$1" == "cd" || "$1" == "edit" || "$1" == "add" ]]; then
     local dir
     dir="$(command gwt "$@")" && cd "$dir"
   else
@@ -59,7 +59,7 @@ compdef _gwt gwt
 const FISH = `
 # gwt shell integration
 function gwt
-  if test "$argv[1]" = "cd" -o "$argv[1]" = "edit"
+  if test "$argv[1]" = "cd" -o "$argv[1]" = "edit" -o "$argv[1]" = "add"
     set -l dir (command gwt $argv)
     and cd $dir
   else

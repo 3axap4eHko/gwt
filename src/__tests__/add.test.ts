@@ -28,7 +28,7 @@ const mockIsValidWorktreeName = vi.mocked(isValidWorktreeName);
 
 describe("add", () => {
   let consoleSpy: ReturnType<typeof vi.spyOn>;
-  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+  let stderrSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -37,7 +37,8 @@ describe("add", () => {
     });
     vi.spyOn(process, "chdir").mockImplementation(() => {});
     consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
   });
 
   test("exits with error for invalid worktree name", async () => {
@@ -90,8 +91,9 @@ describe("add", () => {
 
     await add("feature", { noFetch: true });
 
-    expect(consoleSpy).toHaveBeenCalledWith("Creating worktree 'feature' from existing branch...");
-    expect(consoleSpy).toHaveBeenCalledWith("Done! Worktree created at feature/");
+    expect(stderrSpy).toHaveBeenCalledWith("Creating worktree 'feature' from existing branch...\n");
+    expect(stderrSpy).toHaveBeenCalledWith("Done! Worktree created at feature/\n");
+    expect(consoleSpy).toHaveBeenCalledWith("/project/feature");
   });
 
   test("creates worktree tracking remote branch", async () => {
@@ -130,7 +132,7 @@ describe("add", () => {
 
     await add("feature", { noFetch: true });
 
-    expect(consoleSpy).toHaveBeenCalledWith("Creating worktree 'feature' tracking remote branch...");
+    expect(stderrSpy).toHaveBeenCalledWith("Creating worktree 'feature' tracking remote branch...\n");
   });
 
   test("prefers origin when branch exists on multiple remotes", async () => {
@@ -167,7 +169,7 @@ describe("add", () => {
 
     await add("feature", { noFetch: true });
 
-    expect(consoleSpy).toHaveBeenCalledWith("Creating worktree 'feature' tracking remote branch...");
+    expect(stderrSpy).toHaveBeenCalledWith("Creating worktree 'feature' tracking remote branch...\n");
   });
 
   test("falls back to non-origin remote", async () => {
@@ -204,7 +206,7 @@ describe("add", () => {
 
     await add("feature", { noFetch: true });
 
-    expect(consoleSpy).toHaveBeenCalledWith("Creating worktree 'feature' tracking remote branch...");
+    expect(stderrSpy).toHaveBeenCalledWith("Creating worktree 'feature' tracking remote branch...\n");
   });
 
   test("tracks remote branch when remote name contains slash", async () => {
@@ -248,7 +250,7 @@ describe("add", () => {
 
     await add("feature", { noFetch: true });
 
-    expect(consoleSpy).toHaveBeenCalledWith("Creating worktree 'feature' tracking remote branch...");
+    expect(stderrSpy).toHaveBeenCalledWith("Creating worktree 'feature' tracking remote branch...\n");
   });
 
   test("creates new branch from default", async () => {
@@ -278,7 +280,7 @@ describe("add", () => {
 
     await add("feature", { noFetch: true });
 
-    expect(consoleSpy).toHaveBeenCalledWith("Creating worktree 'feature' as new branch from 'master'...");
+    expect(stderrSpy).toHaveBeenCalledWith("Creating worktree 'feature' as new branch from 'master'...\n");
   });
 
   test("uses from option for source branch", async () => {
@@ -307,7 +309,7 @@ describe("add", () => {
 
     await add("feature", { from: "develop", noFetch: true });
 
-    expect(consoleSpy).toHaveBeenCalledWith("Creating worktree 'feature' as new branch from 'develop'...");
+    expect(stderrSpy).toHaveBeenCalledWith("Creating worktree 'feature' as new branch from 'develop'...\n");
   });
 
   test("falls back to master when no default branch", async () => {
@@ -337,7 +339,7 @@ describe("add", () => {
 
     await add("feature", { noFetch: true });
 
-    expect(consoleSpy).toHaveBeenCalledWith("Creating worktree 'feature' as new branch from 'master'...");
+    expect(stderrSpy).toHaveBeenCalledWith("Creating worktree 'feature' as new branch from 'master'...\n");
   });
 
   test("exits with error when git command fails", async () => {
@@ -386,7 +388,7 @@ describe("add", () => {
 
     await add("feature");
 
-    expect(consoleSpy).toHaveBeenCalledWith("Fetching remotes...");
+    expect(stderrSpy).toHaveBeenCalledWith("Fetching remotes...\n");
   });
 
   test("skips fetch with noFetch option", async () => {
@@ -409,7 +411,7 @@ describe("add", () => {
 
     await add("feature", { noFetch: true });
 
-    expect(consoleSpy).not.toHaveBeenCalledWith("Fetching remotes...");
+    expect(stderrSpy).not.toHaveBeenCalledWith("Fetching remotes...\n");
   });
 
   test("git format strings with parentheses pass through bun shell", () => {
@@ -453,7 +455,7 @@ describe("add", () => {
 
     await add("feature");
 
-    expect(consoleErrorSpy).toHaveBeenCalledWith("Warning: Failed to fetch remotes");
-    expect(consoleSpy).toHaveBeenCalledWith("Done! Worktree created at feature/");
+    expect(stderrSpy).toHaveBeenCalledWith("Warning: Failed to fetch remotes\n");
+    expect(stderrSpy).toHaveBeenCalledWith("Done! Worktree created at feature/\n");
   });
 });

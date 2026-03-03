@@ -18,7 +18,7 @@ describe("shell", () => {
     shell("bash");
     const output = consoleSpy.mock.calls[0][0];
     expect(output).toContain("gwt()");
-    expect(output).toContain('"cd" || "$1" == "edit"');
+    expect(output).toContain('"cd" || "$1" == "edit" || "$1" == "add"');
     expect(output).toContain("_gwt_completions");
     expect(output).toContain("complete -F _gwt_completions gwt");
   });
@@ -36,7 +36,7 @@ describe("shell", () => {
     shell("fish");
     const output = consoleSpy.mock.calls[0][0];
     expect(output).toContain("function gwt");
-    expect(output).toContain('"cd" -o "$argv[1]" = "edit"');
+    expect(output).toContain('"cd" -o "$argv[1]" = "edit" -o "$argv[1]" = "add"');
     expect(output).toContain("complete -c gwt -n '__fish_use_subcommand'");
     expect(output).toContain("__fish_seen_subcommand_from");
   });
