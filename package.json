@@ -1,6 +1,6 @@
 {
   "name": "gwt",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Fast git worktree manager with bare repository workflow",
   "type": "module",
   "bin": {
