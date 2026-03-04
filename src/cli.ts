@@ -97,7 +97,7 @@ const rmCmd = defineCommand({
     },
   },
   run({ args }) {
-    const names = [args.name, ...(args._ as string[] || [])];
+    const names = [...new Set([args.name, ...(args._ as string[] || [])])];
     return rm(names, { force: args.force });
   },
 });
