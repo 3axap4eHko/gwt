@@ -59,6 +59,13 @@ describe("rm", () => {
     mockFindGwtRoot.mockReturnValue("/project");
     mockExistsSync.mockReturnValue(false);
 
+    const { $ } = await import("bun");
+    vi.mocked($).mockReturnValue({
+      quiet: () => ({
+        nothrow: () => Promise.resolve({ exitCode: 0 }),
+      }),
+    } as any);
+
     await expect(rm("feature")).rejects.toThrow("Failed to remove 1 worktree");
     expect(consoleErrorSpy).toHaveBeenCalledWith("Error: Worktree 'feature' not found");
   });
@@ -143,12 +150,12 @@ describe("rm", () => {
       quiet: () => ({
         nothrow: () => {
           callCount++;
-          // 1: status --porcelain (clean)
-          if (callCount === 1) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "" } });
-          // 2: for-each-ref upstream -> "origin"
-          if (callCount === 2) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "origin" } });
-          // 3: fetch
-          if (callCount === 3) return Promise.resolve({ exitCode: 0 });
+          // 1: fetch --all (from rm)
+          if (callCount === 1) return Promise.resolve({ exitCode: 0 });
+          // 2: status --porcelain (clean)
+          if (callCount === 2) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "" } });
+          // 3: for-each-ref upstream -> "origin"
+          if (callCount === 3) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "origin" } });
           // 4: rev-list ahead -> 2
           if (callCount === 4) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "2" } });
           // 5: rev-list behind -> 0
@@ -174,12 +181,12 @@ describe("rm", () => {
       quiet: () => ({
         nothrow: () => {
           callCount++;
-          // 1: status --porcelain (clean)
-          if (callCount === 1) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "" } });
-          // 2: for-each-ref upstream -> "origin"
-          if (callCount === 2) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "origin" } });
-          // 3: fetch
-          if (callCount === 3) return Promise.resolve({ exitCode: 0 });
+          // 1: fetch --all (from rm)
+          if (callCount === 1) return Promise.resolve({ exitCode: 0 });
+          // 2: status --porcelain (clean)
+          if (callCount === 2) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "" } });
+          // 3: for-each-ref upstream -> "origin"
+          if (callCount === 3) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "origin" } });
           // 4: rev-list ahead -> 0
           if (callCount === 4) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "0" } });
           // 5: rev-list behind -> 3
@@ -205,12 +212,12 @@ describe("rm", () => {
       quiet: () => ({
         nothrow: () => {
           callCount++;
-          // 1: status --porcelain (clean)
-          if (callCount === 1) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "" } });
-          // 2: for-each-ref upstream -> "origin"
-          if (callCount === 2) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "origin" } });
-          // 3: fetch
-          if (callCount === 3) return Promise.resolve({ exitCode: 0 });
+          // 1: fetch --all (from rm)
+          if (callCount === 1) return Promise.resolve({ exitCode: 0 });
+          // 2: status --porcelain (clean)
+          if (callCount === 2) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "" } });
+          // 3: for-each-ref upstream -> "origin"
+          if (callCount === 3) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "origin" } });
           // 4: rev-list ahead -> fail
           if (callCount === 4) return Promise.resolve({ exitCode: 1, stdout: { toString: () => "" } });
           // 5: rev-list behind -> fail
@@ -358,12 +365,12 @@ describe("rm", () => {
       quiet: () => ({
         nothrow: () => {
           callCount++;
-          // 1: status --porcelain (clean)
-          if (callCount === 1) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "" } });
-          // 2: for-each-ref upstream -> "origin"
-          if (callCount === 2) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "origin" } });
-          // 3: fetch
-          if (callCount === 3) return Promise.resolve({ exitCode: 0 });
+          // 1: fetch --all (from rm)
+          if (callCount === 1) return Promise.resolve({ exitCode: 0 });
+          // 2: status --porcelain (clean)
+          if (callCount === 2) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "" } });
+          // 3: for-each-ref upstream -> "origin"
+          if (callCount === 3) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "origin" } });
           // 4: rev-list ahead -> 0
           if (callCount === 4) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "0" } });
           // 5: rev-list behind -> 0
@@ -391,12 +398,12 @@ describe("rm", () => {
       quiet: () => ({
         nothrow: () => {
           callCount++;
-          // 1: status --porcelain (clean)
-          if (callCount === 1) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "" } });
-          // 2: for-each-ref upstream -> "origin"
-          if (callCount === 2) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "origin" } });
-          // 3: fetch
-          if (callCount === 3) return Promise.resolve({ exitCode: 0 });
+          // 1: fetch --all (from rm)
+          if (callCount === 1) return Promise.resolve({ exitCode: 0 });
+          // 2: status --porcelain (clean)
+          if (callCount === 2) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "" } });
+          // 3: for-each-ref upstream -> "origin"
+          if (callCount === 3) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "origin" } });
           // 4: rev-list ahead -> 1
           if (callCount === 4) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "1" } });
           // 5: rev-list behind -> 1
@@ -423,16 +430,20 @@ describe("rm", () => {
       quiet: () => ({
         nothrow: () => {
           callCount++;
-          // 1: status --porcelain (clean)
-          if (callCount === 1) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "" } });
-          // 2: for-each-ref upstream -> "upstream/feature" (not origin)
-          if (callCount === 2) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "upstream/feature" } });
-          // 3: fetch --all
-          if (callCount === 3) return Promise.resolve({ exitCode: 0 });
+          // 1: fetch --all (from rm)
+          if (callCount === 1) return Promise.resolve({ exitCode: 0 });
+          // 2: status --porcelain (clean)
+          if (callCount === 2) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "" } });
+          // 3: for-each-ref upstream -> "upstream/feature" (not origin)
+          if (callCount === 3) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "upstream/feature" } });
           // 4: rev-list ahead -> 0
           if (callCount === 4) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "0" } });
           // 5: rev-list behind -> 0
-          return Promise.resolve({ exitCode: 0, stdout: { toString: () => "0" } });
+          if (callCount === 5) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "0" } });
+          // 6: git worktree remove
+          if (callCount === 6) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "" }, stderr: { toString: () => "" } });
+          // 7: git branch -d
+          return Promise.resolve({ exitCode: 0, stdout: { toString: () => "" } });
         },
       }),
     } as any);
@@ -455,20 +466,24 @@ describe("rm", () => {
       quiet: () => ({
         nothrow: () => {
           callCount++;
-          // 1: status --porcelain (clean)
-          if (callCount === 1) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "" } });
-          // 2: upstream not configured
+          // 1: fetch --all (from rm)
+          if (callCount === 1) return Promise.resolve({ exitCode: 0 });
+          // 2: status --porcelain (clean)
           if (callCount === 2) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "" } });
-          // 3: scan refs/remotes for matching branch
-          if (callCount === 3) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "team/core/feature" } });
-          // 4: validate remote exists
-          if (callCount === 4) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "git@example.com:x/y.git" } });
-          // 5: fetch --all
-          if (callCount === 5) return Promise.resolve({ exitCode: 0 });
+          // 3: upstream not configured
+          if (callCount === 3) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "" } });
+          // 4: scan refs/remotes for matching branch
+          if (callCount === 4) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "team/core/feature" } });
+          // 5: validate remote exists
+          if (callCount === 5) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "git@example.com:x/y.git" } });
           // 6: rev-list ahead -> 0
           if (callCount === 6) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "0" } });
           // 7: rev-list behind -> 0
-          return Promise.resolve({ exitCode: 0, stdout: { toString: () => "0" } });
+          if (callCount === 7) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "0" } });
+          // 8: git worktree remove
+          if (callCount === 8) return Promise.resolve({ exitCode: 0, stdout: { toString: () => "" }, stderr: { toString: () => "" } });
+          // 9: git branch -d
+          return Promise.resolve({ exitCode: 0, stdout: { toString: () => "" } });
         },
       }),
     } as any);

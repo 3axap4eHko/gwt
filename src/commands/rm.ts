@@ -29,12 +29,19 @@ export async function rm(names: string | string[], options: RmOptions = {}): Pro
   const root = findGwtRoot()!;
   process.chdir(root);
 
+  if (!options.force) {
+    await $`git fetch --all`.quiet().nothrow();
+  }
+
+  const results = await Promise.allSettled(
+    nameList.map(name => rmOne(name, root, options))
+  );
+
   let failed = 0;
-  for (const name of nameList) {
-    try {
-      await rmOne(name, root, options);
-    } catch (err) {
+  for (const result of results) {
+    if (result.status === "rejected") {
       failed++;
+      const err = result.reason;
       console.error(err instanceof Error ? err.message : String(err));
     }
   }
@@ -144,32 +151,26 @@ async function checkSafety(name: string, worktreePath: string): Promise<string[]
   if (!trackingRef) {
     issues.push(`Branch '${name}' not pushed to remote`);
   } else {
-    const fetchResult = await $`git fetch --all`.quiet().nothrow();
+    const [aheadResult, behindResult] = await Promise.all([
+      $`git -C ${worktreePath} rev-list --count ${trackingRef}..HEAD`.quiet().nothrow(),
+      $`git -C ${worktreePath} rev-list --count HEAD..${trackingRef}`.quiet().nothrow(),
+    ]);
 
-    if (fetchResult.exitCode !== 0) {
-      issues.push("Failed to fetch from remote");
+    if (aheadResult.exitCode !== 0) {
+      issues.push("Failed to check unpushed commits");
     } else {
-      const [aheadResult, behindResult] = await Promise.all([
-        $`git -C ${worktreePath} rev-list --count ${trackingRef}..HEAD`.quiet().nothrow(),
-        $`git -C ${worktreePath} rev-list --count HEAD..${trackingRef}`.quiet().nothrow(),
-      ]);
-
-      if (aheadResult.exitCode !== 0) {
-        issues.push("Failed to check unpushed commits");
-      } else {
-        const ahead = parseInt(aheadResult.stdout.toString().trim(), 10);
-        if (ahead > 0) {
-          issues.push(`${ahead} unpushed commit${ahead > 1 ? "s" : ""}`);
-        }
+      const ahead = parseInt(aheadResult.stdout.toString().trim(), 10);
+      if (ahead > 0) {
+        issues.push(`${ahead} unpushed commit${ahead > 1 ? "s" : ""}`);
       }
+    }
 
-      if (behindResult.exitCode !== 0) {
-        issues.push("Failed to check commits behind remote");
-      } else {
-        const behind = parseInt(behindResult.stdout.toString().trim(), 10);
-        if (behind > 0) {
-          issues.push(`${behind} commit${behind > 1 ? "s" : ""} behind remote`);
-        }
+    if (behindResult.exitCode !== 0) {
+      issues.push("Failed to check commits behind remote");
+    } else {
+      const behind = parseInt(behindResult.stdout.toString().trim(), 10);
+      if (behind > 0) {
+        issues.push(`${behind} commit${behind > 1 ? "s" : ""} behind remote`);
       }
     }
   }
