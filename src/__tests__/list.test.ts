@@ -359,9 +359,7 @@ describe("list", () => {
     ], {
       "fetch --all": { exitCode: 0 },
       "status --porcelain": { exitCode: 0, stdout: { toString: () => "" } },
-      "refs/heads/master": { exitCode: 0, stdout: { toString: () => "origin/master" } },
-      "refs/heads/feature": { exitCode: 0, stdout: { toString: () => "origin/feature" } },
-      "refs/heads/wip": { exitCode: 0, stdout: { toString: () => "" } },
+      "%(refname:short)": { exitCode: 0, stdout: { toString: () => "master origin/master\nfeature origin/feature\nwip " } },
       "rev-list --count": { exitCode: 0, stdout: { toString: () => "0" } },
     });
 
@@ -378,8 +376,7 @@ describe("list", () => {
       { path: "/project/feature", name: "feature", commit: "def", branch: "feature", isBare: false },
     ], {
       "status --porcelain": { exitCode: 0, stdout: { toString: () => "" } },
-      "refs/heads/master": { exitCode: 0, stdout: { toString: () => "origin/master" } },
-      "refs/heads/feature": { exitCode: 0, stdout: { toString: () => "origin/feature" } },
+      "%(refname:short)": { exitCode: 0, stdout: { toString: () => "master origin/master\nfeature origin/feature" } },
       "rev-list --count": (cmd: string) => {
         if (cmd.includes("/project/feature") && cmd.includes("origin/feature..HEAD")) {
           return { exitCode: 0, stdout: { toString: () => "3" } };
@@ -400,8 +397,7 @@ describe("list", () => {
       { path: "/project/old", name: "old", commit: "def", branch: "old", isBare: false },
     ], {
       "status --porcelain": { exitCode: 0, stdout: { toString: () => "" } },
-      "refs/heads/master": { exitCode: 0, stdout: { toString: () => "origin/master" } },
-      "refs/heads/old": { exitCode: 0, stdout: { toString: () => "origin/old" } },
+      "%(refname:short)": { exitCode: 0, stdout: { toString: () => "master origin/master\nold origin/old" } },
       "rev-list --count": (cmd: string) => {
         if (cmd.includes("/project/old") && cmd.includes("HEAD..origin/old")) {
           return { exitCode: 0, stdout: { toString: () => "2" } };
@@ -422,8 +418,7 @@ describe("list", () => {
       { path: "/project/local", name: "local", commit: "def", branch: "local", isBare: false },
     ], {
       "status --porcelain": { exitCode: 0, stdout: { toString: () => "" } },
-      "refs/heads/master": { exitCode: 0, stdout: { toString: () => "origin/master" } },
-      "refs/heads/local": { exitCode: 0, stdout: { toString: () => "" } },
+      "%(refname:short)": { exitCode: 0, stdout: { toString: () => "master origin/master\nlocal " } },
       "rev-list --count": { exitCode: 0, stdout: { toString: () => "0" } },
     });
 
@@ -483,9 +478,7 @@ describe("list", () => {
         }
         return { exitCode: 0, stdout: { toString: () => "" } };
       },
-      "refs/heads/a": { exitCode: 0, stdout: { toString: () => "origin/a" } },
-      "refs/heads/b": { exitCode: 0, stdout: { toString: () => "origin/b" } },
-      "refs/heads/c": { exitCode: 0, stdout: { toString: () => "" } },
+      "%(refname:short)": { exitCode: 0, stdout: { toString: () => "a origin/a\nb origin/b\nc " } },
       "rev-list --count": { exitCode: 0, stdout: { toString: () => "0" } },
     });
 
@@ -563,7 +556,7 @@ describe("list", () => {
       { path: "/project/feature", name: "feature", commit: "abc1234567890", branch: "feature", isBare: false },
     ], {
       "status --porcelain": { exitCode: 0, stdout: { toString: () => "" } },
-      "refs/heads/feature": { exitCode: 0, stdout: { toString: () => "origin/feature" } },
+      "%(refname:short)": { exitCode: 0, stdout: { toString: () => "feature origin/feature" } },
       "rev-list --count": { exitCode: 0, stdout: { toString: () => "0" } },
     });
 

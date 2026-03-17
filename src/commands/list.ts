@@ -53,7 +53,23 @@ export async function list(options: ListOptions = {}): Promise<void> {
     return;
   }
 
-  const upstreamFmt = "%(upstream:short)";
+  let upstreamMap: Map<string, string> | null = null;
+  if (needsSync) {
+    const refFmt = "%(refname:short) %(upstream:short)";
+    const refResult = await $`git for-each-ref --format=${refFmt} refs/heads/`.quiet().nothrow();
+    if (refResult.exitCode === 0) {
+      upstreamMap = new Map();
+      for (const line of refResult.stdout.toString().trim().split("\n")) {
+        if (!line) continue;
+        const spaceIdx = line.indexOf(" ");
+        if (spaceIdx === -1) continue;
+        const branch = line.slice(0, spaceIdx);
+        const upstream = line.slice(spaceIdx + 1);
+        if (upstream) upstreamMap.set(branch, upstream);
+      }
+    }
+  }
+
   const enriched = await Promise.all(
     filtered.map(async (wt) => {
       const statusPromise = $`git -C ${wt.path} status --porcelain`.quiet().nothrow();
@@ -64,8 +80,7 @@ export async function list(options: ListOptions = {}): Promise<void> {
 
       if (needsSync && wt.branch) {
         syncChecked = true;
-        const upstreamResult = await $`git for-each-ref --format=${upstreamFmt} refs/heads/${wt.branch}`.quiet().nothrow();
-        const upstream = upstreamResult.exitCode === 0 ? upstreamResult.stdout.toString().trim() : "";
+        const upstream = upstreamMap?.get(wt.branch) ?? "";
         if (upstream) {
           const [aheadResult, behindResult] = await Promise.all([
             $`git -C ${wt.path} rev-list --count ${upstream}..HEAD`.quiet().nothrow(),
