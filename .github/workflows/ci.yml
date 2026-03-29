@@ -45,12 +45,6 @@ jobs:
         run: bun run build:all
 
       - name: Create release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            dist/gwt-linux-x64
-            dist/gwt-linux-arm64
-            dist/gwt-darwin-x64
-            dist/gwt-darwin-arm64
-            dist/gwt-windows-x64.exe
-          generate_release_notes: true
+        run: gh release create "${{ github.ref_name }}" dist/gwt-* --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
