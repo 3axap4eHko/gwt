@@ -14,9 +14,17 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
+      - name: Install Rust
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v rustup >/dev/null 2>&1; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+            export PATH="$HOME/.cargo/bin:$PATH"
+          fi
+          rustup toolchain install stable --profile minimal --component clippy
+          rustup default stable
 
       - run: cargo test --locked
 
@@ -50,20 +58,46 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v rustup >/dev/null 2>&1; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+            export PATH="$HOME/.cargo/bin:$PATH"
+          fi
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - name: Install Rust (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $cargoBin = Join-Path $env:USERPROFILE '.cargo\bin'
+          if (-not (Get-Command rustup -ErrorAction SilentlyContinue)) {
+            Invoke-WebRequest -Uri 'https://win.rustup.rs/x86_64' -OutFile 'rustup-init.exe'
+            Start-Process -FilePath '.\rustup-init.exe' -ArgumentList '-y','--profile','minimal','--default-toolchain','stable' -Wait -NoNewWindow
+            "$cargoBin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            $env:PATH = "$cargoBin;$env:PATH"
+          }
+          & (Join-Path $cargoBin 'rustup.exe') toolchain install stable --profile minimal
+          & (Join-Path $cargoBin 'rustup.exe') default stable
 
       - run: cargo build --locked --release
 
-      - name: Prepare artifact
+      - name: Stage artifact
         shell: bash
         run: |
-          mkdir -p dist
-          cp "${{ matrix.binary_path }}" "dist/${{ matrix.artifact_name }}"
+          mkdir -p release-assets
+          cp "${{ matrix.binary_path }}" "release-assets/${{ matrix.artifact_name }}"
 
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: dist/${{ matrix.artifact_name }}
+          path: release-assets/${{ matrix.artifact_name }}
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -74,10 +108,10 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          path: dist
+          path: release-assets
           merge-multiple: true
 
       - name: Create release
-        run: gh release create "${{ github.ref_name }}" dist/gwt-* --generate-notes
+        run: gh release create "${{ github.ref_name }}" release-assets/* --generate-notes --repo "${{ github.repository }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
