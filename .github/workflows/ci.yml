@@ -13,18 +13,11 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
-
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-
+      - run: rustup toolchain install stable --profile minimal --component clippy
       - run: cargo test --locked
-
       - run: cargo clippy --locked --all-targets --all-features
 
-      - run: cargo build --locked --release
-
-  release-build:
+  release:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: test
     strategy:
@@ -32,52 +25,32 @@ jobs:
       matrix:
         include:
           - runner: ubuntu-24.04
-            artifact_name: gwt-linux-x64
-            binary_path: target/release/gwt
+            artifact: gwt-linux-x64
+            binary: target/release/gwt
           - runner: ubuntu-24.04-arm
-            artifact_name: gwt-linux-arm64
-            binary_path: target/release/gwt
+            artifact: gwt-linux-arm64
+            binary: target/release/gwt
           - runner: macos-15-intel
-            artifact_name: gwt-darwin-x64
-            binary_path: target/release/gwt
+            artifact: gwt-darwin-x64
+            binary: target/release/gwt
           - runner: macos-15
-            artifact_name: gwt-darwin-arm64
-            binary_path: target/release/gwt
+            artifact: gwt-darwin-arm64
+            binary: target/release/gwt
           - runner: windows-2025
-            artifact_name: gwt-windows-x64.exe
-            binary_path: target/release/gwt.exe
+            artifact: gwt-windows-x64.exe
+            binary: target/release/gwt.exe
     runs-on: ${{ matrix.runner }}
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - run: cargo build --locked --release
-
-      - name: Prepare artifact
-        shell: bash
-        run: |
-          mkdir -p dist
-          cp "${{ matrix.binary_path }}" "dist/${{ matrix.artifact_name }}"
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact_name }}
-          path: dist/${{ matrix.artifact_name }}
-
-  release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: release-build
-    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: dist
-          merge-multiple: true
-
-      - name: Create release
-        run: gh release create "${{ github.ref_name }}" dist/gwt-* --generate-notes
+      - uses: actions/checkout@v6
+      - run: rustup toolchain install stable --profile minimal
+      - run: cargo build --locked --release
+      - name: Upload to release
+        shell: bash
+        run: |
+          gh release create "${{ github.ref_name }}" --generate-notes 2>/dev/null || true
+          cp "${{ matrix.binary }}" "${{ matrix.artifact }}"
+          gh release upload "${{ github.ref_name }}" "${{ matrix.artifact }}" --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
