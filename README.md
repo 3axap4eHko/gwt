@@ -18,13 +18,22 @@ gwt simplifies the workflow by using a bare repository structure where each bran
 
 ## Installation
 
+Unix-like shells:
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/3axap4eHko/gwt/master/install.sh | sh
 ```
 
+PowerShell on Windows:
+
+```powershell
+irm https://raw.githubusercontent.com/3axap4eHko/gwt/master/install.ps1 | iex
+```
+
 This downloads the binary and runs `gwt install`, which:
-- Copies gwt to `~/.local/bin` (warns if not in PATH)
-- Adds shell integration (`eval "$(gwt shell)"`) to your rc file
+- Copies `gwt` to a user-local bin directory
+- Adds that directory to your user `PATH` if needed
+- Adds shell integration to your shell profile when it can detect a supported shell
 
 To update to the latest version:
 
@@ -34,12 +43,11 @@ gwt update
 
 ### From source
 
-Requires [Bun](https://bun.sh) runtime.
+Requires Rust stable toolchain.
 
 ```bash
-bun install
-bun run build
-./dist/gwt install  # Install binary and shell integration
+cargo build --locked --release
+./target/release/gwt install
 ```
 
 ## Quick start
@@ -87,6 +95,9 @@ eval "$(gwt shell)"
 
 # Fish: add to ~/.config/fish/config.fish
 gwt shell fish | source
+
+# PowerShell: add to your profile
+gwt.exe shell powershell | Out-String | Invoke-Expression
 ```
 
 ## Commands
@@ -243,11 +254,12 @@ gwt shell       # Auto-detect
 gwt shell bash
 gwt shell zsh
 gwt shell fish
+gwt shell powershell
 ```
 
 ### `gwt install [dir]`
 
-Install gwt binary and shell integration. Copies the binary to `~/.local/bin` (or custom directory), appends shell integration to your rc file, and warns if the install directory is not in PATH. Safe to run multiple times (idempotent).
+Install gwt binary and shell integration. Copies the binary to a user-local bin directory (or custom directory), updates your user `PATH` when possible, and appends shell integration to a supported shell profile. Safe to run multiple times (idempotent).
 
 ```bash
 gwt install                # Install to ~/.local/bin
@@ -256,7 +268,7 @@ gwt install /usr/local/bin # Install to custom directory
 
 ### `gwt update`
 
-Update gwt to the latest GitHub release. Compares current version against the latest release and replaces the binary in-place.
+Update gwt to the latest GitHub release. Compares current version against the latest release and replaces the binary in-place. Supports Linux, macOS, and Windows x64.
 
 ## Configuration
 
@@ -305,11 +317,10 @@ Set your preferred IDE: `git config --global gwt.ide code`
 ## Development
 
 ```bash
-bun install
-bun run dev -- <command>  # Run in development
-bun run test              # Run tests
-bun run test:coverage     # Run tests with coverage
-bun run lint              # Lint code
+cargo run -- <command>
+cargo test --locked
+cargo clippy --locked --all-targets --all-features
+cargo build --locked --release
 ```
 
 ## License
