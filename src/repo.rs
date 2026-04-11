@@ -149,10 +149,12 @@ pub fn get_gwt_config(root: &Path) -> Option<GwtConfig> {
 }
 
 pub fn ensure_gwt_setup() -> AppResult<PathBuf> {
-    let root = find_gwt_root(None)
-        .ok_or_else(|| "Error: Not in a gwt-managed repository. Run 'gwt clone' or 'gwt init'.".to_string())?;
-    let config = get_gwt_config(&root)
-        .ok_or_else(|| "Error: Found .bare but not gwt-managed. Run 'gwt init' to set up.".to_string())?;
+    let root = find_gwt_root(None).ok_or_else(|| {
+        "Error: Not in a gwt-managed repository. Run 'gwt clone' or 'gwt init'.".to_string()
+    })?;
+    let config = get_gwt_config(&root).ok_or_else(|| {
+        "Error: Found .bare but not gwt-managed. Run 'gwt init' to set up.".to_string()
+    })?;
     if config.version.is_none() {
         Err("Error: Found .bare but not gwt-managed. Run 'gwt init' to set up.".to_string())
     } else {
@@ -340,7 +342,13 @@ fn extract_config_value(content: &str, section: &str, key: &str) -> Option<Strin
 
         if let Some((candidate_key, candidate_value)) = trimmed.split_once('=') {
             if candidate_key.trim() == key {
-                return Some(candidate_value.trim().trim_matches('"').trim_matches('\'').to_string());
+                return Some(
+                    candidate_value
+                        .trim()
+                        .trim_matches('"')
+                        .trim_matches('\'')
+                        .to_string(),
+                );
             }
         }
     }
@@ -381,8 +389,8 @@ fn is_executable(path: &Path) -> bool {
 
 #[cfg(windows)]
 fn windows_path_extensions() -> Vec<String> {
-    let pathext = std::env::var_os("PATHEXT")
-        .unwrap_or_else(|| OsString::from(".COM;.EXE;.BAT;.CMD"));
+    let pathext =
+        std::env::var_os("PATHEXT").unwrap_or_else(|| OsString::from(".COM;.EXE;.BAT;.CMD"));
     pathext
         .to_string_lossy()
         .split(';')
@@ -461,7 +469,13 @@ mod tests {
     #[test]
     fn extracts_config_values() {
         let content = "[gwt]\nversion = 0.3.7\ndefaultBranch = master\n";
-        assert_eq!(extract_config_value(content, "gwt", "version").as_deref(), Some("0.3.7"));
-        assert_eq!(extract_config_value(content, "gwt", "defaultBranch").as_deref(), Some("master"));
+        assert_eq!(
+            extract_config_value(content, "gwt", "version").as_deref(),
+            Some("0.3.7")
+        );
+        assert_eq!(
+            extract_config_value(content, "gwt", "defaultBranch").as_deref(),
+            Some("master")
+        );
     }
 }

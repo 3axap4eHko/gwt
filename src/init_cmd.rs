@@ -61,10 +61,17 @@ pub fn run(args: &[OsString]) -> AppResult<()> {
         Some(&root),
     )?;
     if config_prune.exit_code != 0 {
-        return Err(format!("Error: Failed to configure fetch.prune\n{}", config_prune.stderr.trim()));
+        return Err(format!(
+            "Error: Failed to configure fetch.prune\n{}",
+            config_prune.stderr.trim()
+        ));
     }
 
-    if config.as_ref().and_then(|value| value.default_branch.clone()).is_none() {
+    if config
+        .as_ref()
+        .and_then(|value| value.default_branch.clone())
+        .is_none()
+    {
         let detected = detect_default_branch(&root)?;
         let configured = git(
             [
@@ -92,7 +99,10 @@ pub fn run(args: &[OsString]) -> AppResult<()> {
         Some(&root),
     )?;
     if config_version.exit_code != 0 {
-        return Err(format!("Error: Failed to set gwt.version\n{}", config_version.stderr.trim()));
+        return Err(format!(
+            "Error: Failed to set gwt.version\n{}",
+            config_version.stderr.trim()
+        ));
     }
 
     println!();

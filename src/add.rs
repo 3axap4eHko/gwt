@@ -16,7 +16,10 @@ pub fn run(args: &[OsString]) -> AppResult<()> {
     let root = ensure_gwt_setup()?;
     let worktree_path = root.join(&options.name);
     if worktree_path.exists() {
-        return Err(format!("Error: Directory '{}' already exists", options.name));
+        return Err(format!(
+            "Error: Directory '{}' already exists",
+            options.name
+        ));
     }
 
     if !options.no_fetch {
@@ -37,7 +40,10 @@ pub fn run(args: &[OsString]) -> AppResult<()> {
     let local_branch_exists = branch_exists_locally(&root, &options.name)?;
 
     let command = if local_branch_exists {
-        eprintln!("Creating worktree '{}' from existing branch...", options.name);
+        eprintln!(
+            "Creating worktree '{}' from existing branch...",
+            options.name
+        );
         vec![
             OsString::from("worktree"),
             OsString::from("add"),
@@ -45,7 +51,10 @@ pub fn run(args: &[OsString]) -> AppResult<()> {
             OsString::from(&options.name),
         ]
     } else if let Some(remote_ref) = &remote_ref {
-        eprintln!("Creating worktree '{}' tracking remote branch...", options.name);
+        eprintln!(
+            "Creating worktree '{}' tracking remote branch...",
+            options.name
+        );
         vec![
             OsString::from("worktree"),
             OsString::from("add"),
@@ -57,7 +66,10 @@ pub fn run(args: &[OsString]) -> AppResult<()> {
         ]
     } else {
         let start_point = resolve_start_point(&root, &from_branch)?;
-        eprintln!("Creating worktree '{}' as new branch from '{}'...", options.name, from_branch);
+        eprintln!(
+            "Creating worktree '{}' as new branch from '{}'...",
+            options.name, from_branch
+        );
         vec![
             OsString::from("worktree"),
             OsString::from("add"),
@@ -71,7 +83,10 @@ pub fn run(args: &[OsString]) -> AppResult<()> {
 
     let result = git(command, Some(&root))?;
     if result.exit_code != 0 {
-        return Err(format!("Error: Failed to create worktree\n{}", result.stderr.trim()));
+        return Err(format!(
+            "Error: Failed to create worktree\n{}",
+            result.stderr.trim()
+        ));
     }
 
     if local_branch_exists {
@@ -117,7 +132,9 @@ fn parse_options(args: &[OsString]) -> AppResult<AddOptions> {
                 from = Some(arg_to_str(value)?.to_string());
             }
             "-n" | "--no-fetch" => no_fetch = true,
-            value if value.starts_with('-') => return Err(format!("Error: unknown add option '{value}'")),
+            value if value.starts_with('-') => {
+                return Err(format!("Error: unknown add option '{value}'"));
+            }
             value => {
                 if name.is_some() {
                     return Err("Error: add accepts exactly one worktree name".to_string());
@@ -133,11 +150,18 @@ fn parse_options(args: &[OsString]) -> AppResult<AddOptions> {
         return Err("Error: Invalid worktree name".to_string());
     }
 
-    Ok(AddOptions { name, from, no_fetch })
+    Ok(AddOptions {
+        name,
+        from,
+        no_fetch,
+    })
 }
 
 fn find_remote_branch(root: &std::path::Path, name: &str) -> AppResult<Option<String>> {
-    let refs = git(["for-each-ref", "--format=%(refname:short)", "refs/remotes"], Some(root))?;
+    let refs = git(
+        ["for-each-ref", "--format=%(refname:short)", "refs/remotes"],
+        Some(root),
+    )?;
     if refs.exit_code != 0 {
         return Ok(None);
     }
@@ -166,7 +190,10 @@ fn find_remote_branch(root: &std::path::Path, name: &str) -> AppResult<Option<St
         }
     }
 
-    if let Some(origin) = valid.iter().find(|reference| *reference == &format!("origin/{name}")) {
+    if let Some(origin) = valid
+        .iter()
+        .find(|reference| *reference == &format!("origin/{name}"))
+    {
         Ok(Some(origin.clone()))
     } else {
         Ok(valid.into_iter().next())

@@ -41,7 +41,10 @@ pub fn run(args: &[OsString]) -> AppResult<()> {
         return Ok(());
     }
 
-    let url = format!("https://github.com/{}/releases/download/{}/{}", REPO, latest, binary_name);
+    let url = format!(
+        "https://github.com/{}/releases/download/{}/{}",
+        REPO, latest, binary_name
+    );
     println!("Downloading gwt {} ({})...", latest, binary_name);
 
     let temp_path = if std::env::consts::OS == "windows" {
@@ -115,7 +118,9 @@ fn set_executable(path: &std::path::Path) -> AppResult<()> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let mut permissions = fs::metadata(path).map_err(|error| error.to_string())?.permissions();
+        let mut permissions = fs::metadata(path)
+            .map_err(|error| error.to_string())?
+            .permissions();
         permissions.set_mode(0o755);
         fs::set_permissions(path, permissions).map_err(|error| error.to_string())?;
     }
@@ -135,7 +140,13 @@ fn stage_windows_update(source: &std::path::Path, destination: &std::path::Path)
     fs::write(&script_path, WINDOWS_UPDATE_SCRIPT).map_err(|error| error.to_string())?;
 
     Command::new(host)
-        .args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File"])
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+        ])
         .arg(&script_path)
         .env("GWT_UPDATE_SOURCE", source)
         .env("GWT_UPDATE_DESTINATION", destination)

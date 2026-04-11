@@ -1,5 +1,8 @@
 use std::ffi::OsString;
-use std::io::{self, Write};
+
+use dialoguer::Select;
+use dialoguer::console::Term;
+use dialoguer::theme::ColorfulTheme;
 
 use crate::AppResult;
 use crate::arg_to_str;
@@ -37,41 +40,42 @@ pub fn resolve_worktree<'a>(worktrees: &'a [Worktree], name: &str) -> AppResult<
 }
 
 pub fn select_worktree(worktrees: &[Worktree]) -> AppResult<Worktree> {
-    let max_name = worktrees.iter().map(|worktree| worktree.name.len()).max().unwrap_or(0);
-    let mut stderr = io::stderr().lock();
-
-    writeln!(stderr, "Select worktree").map_err(|error| error.to_string())?;
-    for (index, worktree) in worktrees.iter().enumerate() {
-        let branch = worktree.branch.as_deref().unwrap_or("(detached)");
-        let age = format_age(worktree.mtime);
-        writeln!(
-            stderr,
-            "{}. {}  {}  {}",
-            index + 1,
-            pad_name(&worktree.name, max_name),
-            branch,
-            age
-        )
+    let max_name = worktrees
+        .iter()
+        .map(|worktree| worktree.name.len())
+        .max()
+        .unwrap_or(0);
+    let labels = worktrees
+        .iter()
+        .map(|worktree| format_worktree_label(worktree, max_name))
+        .collect::<Vec<_>>();
+    let selection = Select::with_theme(&ColorfulTheme::default())
+        .with_prompt("Select worktree")
+        .items(&labels)
+        .default(0)
+        .report(false)
+        .interact_on_opt(&Term::stderr())
         .map_err(|error| error.to_string())?;
-    }
-    write!(stderr, "> ").map_err(|error| error.to_string())?;
-    stderr.flush().map_err(|error| error.to_string())?;
-    drop(stderr);
 
-    let mut input = String::new();
-    io::stdin().read_line(&mut input).map_err(|error| error.to_string())?;
-    let trimmed = input.trim();
-    if trimmed.is_empty() {
+    let Some(index) = selection else {
         std::process::exit(1);
-    }
+    };
 
-    let index = trimmed
-        .parse::<usize>()
-        .map_err(|_| "Error: invalid selection".to_string())?;
-    match worktrees.get(index.saturating_sub(1)) {
+    match worktrees.get(index) {
         Some(worktree) => Ok(worktree.clone()),
         None => Err("Error: invalid selection".to_string()),
     }
+}
+
+fn format_worktree_label(worktree: &Worktree, max_name: usize) -> String {
+    let branch = worktree.branch.as_deref().unwrap_or("(detached)");
+    let age = format_age(worktree.mtime);
+    format!(
+        "{}  {}  {}",
+        pad_name(&worktree.name, max_name),
+        branch,
+        age
+    )
 }
 
 fn pad_name(name: &str, width: usize) -> String {
@@ -81,4 +85,66 @@ fn pad_name(name: &str, width: usize) -> String {
         padded.push_str(&" ".repeat(width - name.len()));
     }
     padded
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use super::{format_worktree_label, pad_name, resolve_worktree};
+    use crate::repo::Worktree;
+
+    #[test]
+    fn formats_worktree_label() {
+        let label = format_worktree_label(
+            &Worktree {
+                path: PathBuf::from("/repo/feature"),
+                name: "feature".to_string(),
+                branch: Some("feature".to_string()),
+                mtime: 0,
+            },
+            7,
+        );
+
+        assert_eq!(label, "feature  feature  ");
+    }
+
+    #[test]
+    fn formats_detached_worktree_label() {
+        let label = format_worktree_label(
+            &Worktree {
+                path: PathBuf::from("/repo/detached"),
+                name: "detached".to_string(),
+                branch: None,
+                mtime: 0,
+            },
+            10,
+        );
+
+        assert_eq!(label, "detached    (detached)  ");
+    }
+
+    #[test]
+    fn pads_name_to_width() {
+        assert_eq!(pad_name("feat", 7), "feat   ");
+    }
+
+    #[test]
+    fn resolves_worktree_by_name() {
+        let worktree = Worktree {
+            path: PathBuf::from("/repo/feature"),
+            name: "feature".to_string(),
+            branch: Some("feature".to_string()),
+            mtime: 0,
+        };
+        let other = Worktree {
+            path: PathBuf::from("/repo/master"),
+            name: "master".to_string(),
+            branch: Some("master".to_string()),
+            mtime: 0,
+        };
+        let worktrees = vec![worktree.clone(), other];
+
+        assert_eq!(resolve_worktree(&worktrees, "feature"), Ok(&worktree));
+    }
 }

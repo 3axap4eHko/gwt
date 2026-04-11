@@ -20,9 +20,18 @@ pub fn run_lock(args: &[OsString]) -> AppResult<()> {
     }
     let result = git(command, Some(&root))?;
     if result.exit_code != 0 {
-        return Err(format!("Error: Failed to lock worktree\n{}", result.stderr.trim()));
+        return Err(format!(
+            "Error: Failed to lock worktree\n{}",
+            result.stderr.trim()
+        ));
     }
-    println!("Locked '{}'{}", name, reason.map(|value| format!(": {}", value)).unwrap_or_default());
+    println!(
+        "Locked '{}'{}",
+        name,
+        reason
+            .map(|value| format!(": {}", value))
+            .unwrap_or_default()
+    );
     Ok(())
 }
 
@@ -38,7 +47,10 @@ pub fn run_unlock(args: &[OsString]) -> AppResult<()> {
         Some(&root),
     )?;
     if result.exit_code != 0 {
-        return Err(format!("Error: Failed to unlock worktree\n{}", result.stderr.trim()));
+        return Err(format!(
+            "Error: Failed to unlock worktree\n{}",
+            result.stderr.trim()
+        ));
     }
     println!("Unlocked '{}'", name);
     Ok(())
@@ -71,7 +83,10 @@ pub fn run_move(args: &[OsString]) -> AppResult<()> {
         Some(&root),
     )?;
     if result.exit_code != 0 {
-        return Err(format!("Error: Failed to move worktree\n{}", result.stderr.trim()));
+        return Err(format!(
+            "Error: Failed to move worktree\n{}",
+            result.stderr.trim()
+        ));
     }
     println!("Moved '{}' to '{}'", name, new_path);
     Ok(())
@@ -90,7 +105,9 @@ fn parse_lock_args(args: &[OsString]) -> AppResult<(String, Option<String>)> {
                     .ok_or_else(|| "Error: --reason requires a value".to_string())?;
                 reason = Some(arg_to_str(value)?.to_string());
             }
-            value if value.starts_with('-') => return Err(format!("Error: unknown lock option '{value}'")),
+            value if value.starts_with('-') => {
+                return Err(format!("Error: unknown lock option '{value}'"));
+            }
             value => {
                 if name.is_some() {
                     return Err("Error: lock accepts exactly one worktree name".to_string());

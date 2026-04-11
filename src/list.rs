@@ -4,7 +4,9 @@ use std::thread;
 
 use crate::AppResult;
 use crate::arg_to_str;
-use crate::repo::{WorktreeInfo, ensure_gwt_setup, format_age, git, git_in_worktree, parse_worktree_list};
+use crate::repo::{
+    WorktreeInfo, ensure_gwt_setup, format_age, git, git_in_worktree, parse_worktree_list,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SyncStatus {
@@ -55,7 +57,12 @@ pub fn run(args: &[OsString]) -> AppResult<()> {
         return Ok(());
     }
 
-    let has_filters = options.clean || options.dirty || options.synced || options.ahead || options.behind || options.no_remote;
+    let has_filters = options.clean
+        || options.dirty
+        || options.synced
+        || options.ahead
+        || options.behind
+        || options.no_remote;
     let needs_sync = options.synced || options.ahead || options.behind || options.no_remote;
 
     if needs_sync && !options.no_fetch {
@@ -81,16 +88,19 @@ pub fn run(args: &[OsString]) -> AppResult<()> {
     let mut enriched = thread::scope(|scope| {
         let mut tasks = Vec::new();
         for worktree in filtered {
-            let upstream = worktree
-                .branch
-                .as_ref()
-                .and_then(|branch| upstream_map.as_ref().and_then(|map| map.get(branch).cloned()));
+            let upstream = worktree.branch.as_ref().and_then(|branch| {
+                upstream_map
+                    .as_ref()
+                    .and_then(|map| map.get(branch).cloned())
+            });
             tasks.push(scope.spawn(move || enrich_worktree(worktree, upstream, needs_sync)));
         }
 
         let mut results = Vec::new();
         for task in tasks {
-            let result = task.join().map_err(|_| "Error: worker thread panicked".to_string())?;
+            let result = task
+                .join()
+                .map_err(|_| "Error: worker thread panicked".to_string())?;
             results.push(result?);
         }
         Ok::<Vec<EnrichedWorktree>, String>(results)
@@ -101,8 +111,16 @@ pub fn run(args: &[OsString]) -> AppResult<()> {
             (!options.clean || !worktree.dirty)
                 && (!options.dirty || worktree.dirty)
                 && (!options.synced || worktree.sync_status == SyncStatus::Synced)
-                && (!options.ahead || matches!(worktree.sync_status, SyncStatus::Ahead | SyncStatus::Diverged))
-                && (!options.behind || matches!(worktree.sync_status, SyncStatus::Behind | SyncStatus::Diverged))
+                && (!options.ahead
+                    || matches!(
+                        worktree.sync_status,
+                        SyncStatus::Ahead | SyncStatus::Diverged
+                    ))
+                && (!options.behind
+                    || matches!(
+                        worktree.sync_status,
+                        SyncStatus::Behind | SyncStatus::Diverged
+                    ))
                 && (!options.no_remote || worktree.sync_status == SyncStatus::NoRemote)
         });
     }
@@ -124,7 +142,11 @@ pub fn run(args: &[OsString]) -> AppResult<()> {
         return Ok(());
     }
 
-    let max_name = enriched.iter().map(|worktree| worktree.info.name.len()).max().unwrap_or(0);
+    let max_name = enriched
+        .iter()
+        .map(|worktree| worktree.info.name.len())
+        .max()
+        .unwrap_or(0);
     for worktree in enriched {
         let name = format!("{:width$}", worktree.info.name, width = max_name);
         let branch = worktree.info.branch.as_deref().unwrap_or("(detached)");
@@ -176,7 +198,9 @@ fn parse_options(args: &[OsString]) -> AppResult<ListOptions> {
             "--no-remote" => options.no_remote = true,
             "--no-fetch" | "-F" => options.no_fetch = true,
             "--help" | "-h" => {
-                println!("gwt list [--json] [--names] [--clean] [--dirty] [--synced] [--ahead] [--behind] [--no-remote] [--no-fetch]");
+                println!(
+                    "gwt list [--json] [--names] [--clean] [--dirty] [--synced] [--ahead] [--behind] [--no-remote] [--no-fetch]"
+                );
                 return Err(String::new());
             }
             other => return Err(format!("Error: unknown list option '{other}'")),
@@ -185,8 +209,17 @@ fn parse_options(args: &[OsString]) -> AppResult<ListOptions> {
     Ok(options)
 }
 
-fn load_upstream_map(root: &std::path::Path) -> AppResult<std::collections::HashMap<String, String>> {
-    let output = git(["for-each-ref", "--format=%(refname:short) %(upstream:short)", "refs/heads/"], Some(root))?;
+fn load_upstream_map(
+    root: &std::path::Path,
+) -> AppResult<std::collections::HashMap<String, String>> {
+    let output = git(
+        [
+            "for-each-ref",
+            "--format=%(refname:short) %(upstream:short)",
+            "refs/heads/",
+        ],
+        Some(root),
+    )?;
     let mut map = std::collections::HashMap::new();
     if output.exit_code != 0 {
         return Ok(map);
@@ -205,7 +238,11 @@ fn load_upstream_map(root: &std::path::Path) -> AppResult<std::collections::Hash
     Ok(map)
 }
 
-fn enrich_worktree(info: WorktreeInfo, upstream: Option<String>, needs_sync: bool) -> AppResult<EnrichedWorktree> {
+fn enrich_worktree(
+    info: WorktreeInfo,
+    upstream: Option<String>,
+    needs_sync: bool,
+) -> AppResult<EnrichedWorktree> {
     let status = git_in_worktree(&info.path, &["status", "--porcelain"])?;
     let dirty = status.exit_code == 0 && !status.stdout.trim().is_empty();
     let mtime = fs::metadata(&info.path)
@@ -224,7 +261,8 @@ fn enrich_worktree(info: WorktreeInfo, upstream: Option<String>, needs_sync: boo
             let ahead_ref = format!("{upstream}..HEAD");
             let behind_ref = format!("HEAD..{upstream}");
             let ahead = git_in_worktree(&info.path, &["rev-list", "--count", ahead_ref.as_str()])?;
-            let behind = git_in_worktree(&info.path, &["rev-list", "--count", behind_ref.as_str()])?;
+            let behind =
+                git_in_worktree(&info.path, &["rev-list", "--count", behind_ref.as_str()])?;
             let ahead_count = parse_count(ahead.exit_code, &ahead.stdout);
             let behind_count = parse_count(behind.exit_code, &behind.stdout);
             sync_status = match (ahead_count > 0, behind_count > 0) {
@@ -257,7 +295,10 @@ fn print_json(worktrees: &[EnrichedWorktree]) {
     println!("[");
     for (index, worktree) in worktrees.iter().enumerate() {
         let mut fields = Vec::new();
-        fields.push(format!("    \"name\": {}", json_string(&worktree.info.name)));
+        fields.push(format!(
+            "    \"name\": {}",
+            json_string(&worktree.info.name)
+        ));
         fields.push(format!(
             "    \"path\": {}",
             json_string(&worktree.info.path.display().to_string())
@@ -271,7 +312,10 @@ fn print_json(worktrees: &[EnrichedWorktree]) {
             None => "    \"branch\": null".to_string(),
         });
         fields.push(format!("    \"dirty\": {}", worktree.dirty));
-        fields.push(format!("    \"locked\": {}", worktree.info.locked.is_some()));
+        fields.push(format!(
+            "    \"locked\": {}",
+            worktree.info.locked.is_some()
+        ));
         if let Some(reason) = &worktree.info.locked {
             if !reason.is_empty() {
                 fields.push(format!("    \"lockReason\": {}", json_string(reason)));
@@ -283,7 +327,10 @@ fn print_json(worktrees: &[EnrichedWorktree]) {
                 json_string(sync_status_label(worktree.sync_status))
             ));
         }
-        fields.push(format!("    \"age\": {}", json_string(&format_age(worktree.mtime))));
+        fields.push(format!(
+            "    \"age\": {}",
+            json_string(&format_age(worktree.mtime))
+        ));
 
         println!("  {{");
         println!("{}", fields.join(",\n"));

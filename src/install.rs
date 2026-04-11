@@ -128,7 +128,10 @@ pub fn run(args: &[std::ffi::OsString]) -> AppResult<()> {
             }
         }
         println!("{}", actions.join("\n"));
-        if actions.iter().any(|action| action.contains("PATH") || action.contains("shell integration")) {
+        if actions
+            .iter()
+            .any(|action| action.contains("PATH") || action.contains("shell integration"))
+        {
             println!();
             println!("Restart PowerShell or open a new terminal.");
         }
@@ -156,7 +159,10 @@ pub fn run(args: &[std::ffi::OsString]) -> AppResult<()> {
 
     println!("{}", actions.join("\n"));
     if let Some(rc_path) = rc_path {
-        if actions.iter().any(|action| action.contains("Added shell integration")) {
+        if actions
+            .iter()
+            .any(|action| action.contains("Added shell integration"))
+        {
             println!();
             println!("Restart your shell or run: source {}", rc_path.display());
         }
@@ -208,7 +214,9 @@ fn set_executable(path: &Path) -> AppResult<()> {
     {
         use std::os::unix::fs::PermissionsExt;
 
-        let mut permissions = fs::metadata(path).map_err(|error| error.to_string())?.permissions();
+        let mut permissions = fs::metadata(path)
+            .map_err(|error| error.to_string())?
+            .permissions();
         permissions.set_mode(0o755);
         fs::set_permissions(path, permissions).map_err(|error| error.to_string())?;
     }
@@ -221,10 +229,14 @@ fn binary_name_for_os(os: &str) -> &'static str {
 
 fn default_install_dir(os: &str) -> AppResult<PathBuf> {
     if os == "windows" {
-        let local_app_data = std::env::var_os("LOCALAPPDATA").map(PathBuf::from).or_else(|| {
-            std::env::var_os("USERPROFILE").map(|value| PathBuf::from(value).join("AppData").join("Local"))
-        });
-        let base = local_app_data.ok_or_else(|| "Neither %LOCALAPPDATA% nor %USERPROFILE% is set".to_string())?;
+        let local_app_data = std::env::var_os("LOCALAPPDATA")
+            .map(PathBuf::from)
+            .or_else(|| {
+                std::env::var_os("USERPROFILE")
+                    .map(|value| PathBuf::from(value).join("AppData").join("Local"))
+            });
+        let base = local_app_data
+            .ok_or_else(|| "Neither %LOCALAPPDATA% nor %USERPROFILE% is set".to_string())?;
         Ok(base.join("Programs").join("gwt").join("bin"))
     } else {
         let home = std::env::var_os("HOME").ok_or_else(|| "$HOME is not set".to_string())?;
@@ -256,7 +268,14 @@ fn add_windows_path(dir: &Path) -> AppResult<bool> {
     };
 
     let output = Command::new(host)
-        .args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", WINDOWS_PATH_SCRIPT])
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            WINDOWS_PATH_SCRIPT,
+        ])
         .env("GWT_INSTALL_DIR", dir)
         .output()
         .map_err(|error| format!("Error: failed to run {host}\n{error}"))?;
@@ -288,7 +307,14 @@ fn ensure_windows_shell_integration() -> AppResult<WindowsProfileUpdates> {
 
 fn add_windows_profile_line(host: &str) -> AppResult<Option<PathBuf>> {
     let output = Command::new(host)
-        .args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", WINDOWS_PROFILE_SCRIPT])
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            WINDOWS_PROFILE_SCRIPT,
+        ])
         .output()
         .map_err(|error| format!("Error: failed to run {host}\n{error}"))?;
     if !output.status.success() {

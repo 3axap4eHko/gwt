@@ -46,7 +46,9 @@ fn parse_options(args: &[OsString]) -> AppResult<(Option<String>, bool)> {
     for arg in args {
         match arg_to_str(arg)? {
             "-n" | "--no-fetch" => no_fetch = true,
-            value if value.starts_with('-') => return Err(format!("Error: unknown sync option '{value}'")),
+            value if value.starts_with('-') => {
+                return Err(format!("Error: unknown sync option '{value}'"));
+            }
             value => {
                 if name.is_some() {
                     return Err("Error: sync accepts at most one worktree name".to_string());

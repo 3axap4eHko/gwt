@@ -44,7 +44,9 @@ pub fn run(args: &[OsString]) -> AppResult<()> {
 
             let mut results = Vec::new();
             for task in tasks {
-                let result = task.join().map_err(|_| "Error: worker thread panicked".to_string())?;
+                let result = task
+                    .join()
+                    .map_err(|_| "Error: worker thread panicked".to_string())?;
                 results.push(result);
             }
             Ok::<Vec<AppResult<RemovalCandidate>>, String>(results)
@@ -83,7 +85,9 @@ fn parse_options(args: &[OsString]) -> AppResult<RmOptions> {
     for arg in args {
         match arg_to_str(arg)? {
             "-f" | "--force" => force = true,
-            value if value.starts_with('-') => return Err(format!("Error: unknown rm option '{value}'")),
+            value if value.starts_with('-') => {
+                return Err(format!("Error: unknown rm option '{value}'"));
+            }
             value => names.push(value.to_string()),
         }
     }
@@ -131,7 +135,11 @@ fn remove_one(root: &std::path::Path, name: String, force: bool) -> AppResult<()
     remove_candidate(root, RemovalCandidate { name, path }, force)
 }
 
-fn remove_candidate(root: &std::path::Path, candidate: RemovalCandidate, force: bool) -> AppResult<()> {
+fn remove_candidate(
+    root: &std::path::Path,
+    candidate: RemovalCandidate,
+    force: bool,
+) -> AppResult<()> {
     println!("Removing worktree '{}'...", candidate.name);
     let remove = git(
         [
@@ -177,7 +185,11 @@ fn remove_candidate(root: &std::path::Path, candidate: RemovalCandidate, force: 
     Ok(())
 }
 
-fn check_safety(root: &std::path::Path, name: &str, path: &std::path::Path) -> AppResult<Vec<String>> {
+fn check_safety(
+    root: &std::path::Path,
+    name: &str,
+    path: &std::path::Path,
+) -> AppResult<Vec<String>> {
     let mut issues = Vec::new();
 
     if let Some(default_branch) = get_default_branch(root) {
@@ -283,7 +295,10 @@ fn find_tracking_ref(root: &std::path::Path, name: &str) -> AppResult<Option<Str
 
     if refs.is_empty() {
         Ok(None)
-    } else if let Some(origin) = refs.iter().find(|reference| *reference == &format!("origin/{name}")) {
+    } else if let Some(origin) = refs
+        .iter()
+        .find(|reference| *reference == &format!("origin/{name}"))
+    {
         Ok(Some(origin.clone()))
     } else {
         Ok(refs.into_iter().next())

@@ -20,3 +20,6 @@ codegen-units = 1
 lto = true
 panic = "abort"
 strip = "symbols"
+
+[dependencies]
+dialoguer = { version = "=0.12.0", default-features = false }

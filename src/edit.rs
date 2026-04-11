@@ -1,4 +1,5 @@
 use std::ffi::OsString;
+use std::path::Path;
 use std::process::Command;
 
 use crate::AppResult;
@@ -37,7 +38,9 @@ fn parse_options(args: &[OsString]) -> AppResult<EditOptions> {
     for arg in args {
         match arg_to_str(arg)? {
             "-a" | "--add" => add = true,
-            value if value.starts_with('-') => return Err(format!("Error: unknown edit option '{value}'")),
+            value if value.starts_with('-') => {
+                return Err(format!("Error: unknown edit option '{value}'"));
+            }
             value => {
                 if name.is_some() {
                     return Err("Error: edit accepts at most one worktree name".to_string());
@@ -50,19 +53,37 @@ fn parse_options(args: &[OsString]) -> AppResult<EditOptions> {
     Ok(EditOptions { name, add })
 }
 
-fn open_in_editor(root: &std::path::Path, path: &std::path::Path, add_to_workspace: bool) -> AppResult<()> {
-    let ide = detect_ide(root)?.ok_or_else(|| "No IDE found. Set one with: git config --global gwt.ide <ide>".to_string())?;
+fn open_in_editor(
+    root: &std::path::Path,
+    path: &std::path::Path,
+    add_to_workspace: bool,
+) -> AppResult<()> {
+    let ide = detect_ide(root)?.ok_or_else(|| {
+        "No IDE found. Set one with: git config --global gwt.ide <ide>".to_string()
+    })?;
     let use_add = add_to_workspace && matches!(ide.as_str(), "code" | "cursor");
     let mut command = Command::new(&ide);
     if use_add {
         command.arg("--add");
     }
     command.arg(path);
-    let status = command.status().map_err(|error| error.to_string())?;
-    if !status.success() {
-        eprintln!("Warning: Failed to open {}", ide);
+    if should_detach_editor(&ide) {
+        command.spawn().map_err(|error| error.to_string())?;
+    } else {
+        let status = command.status().map_err(|error| error.to_string())?;
+        if !status.success() {
+            eprintln!("Warning: Failed to open {}", ide);
+        }
     }
     Ok(())
+}
+
+fn should_detach_editor(ide: &str) -> bool {
+    let Some(name) = Path::new(ide).file_name().and_then(|value| value.to_str()) else {
+        return false;
+    };
+
+    matches!(name, "code" | "cursor" | "zed" | "code-insiders")
 }
 
 fn detect_ide(root: &std::path::Path) -> AppResult<Option<String>> {
@@ -92,4 +113,24 @@ fn detect_ide(root: &std::path::Path) -> AppResult<Option<String>> {
     }
 
     Ok(None)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::should_detach_editor;
+
+    #[test]
+    fn detaches_known_gui_editors() {
+        assert!(should_detach_editor("code"));
+        assert!(should_detach_editor("cursor"));
+        assert!(should_detach_editor("zed"));
+        assert!(should_detach_editor("/usr/bin/code-insiders"));
+    }
+
+    #[test]
+    fn keeps_terminal_editors_attached() {
+        assert!(!should_detach_editor("nvim"));
+        assert!(!should_detach_editor("vim"));
+        assert!(!should_detach_editor("hx"));
+    }
 }

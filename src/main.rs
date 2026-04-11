@@ -86,5 +86,7 @@ fn arg_to_str(arg: &OsStr) -> AppResult<&str> {
 
 fn print_usage() {
     println!("gwt {}", repo::get_current_version());
-    println!("Commands: clone init add rm list ls lock unlock move cd edit run sync pr mr shell install update");
+    println!(
+        "Commands: clone init add rm list ls lock unlock move cd edit run sync pr mr shell install update"
+    );
 }

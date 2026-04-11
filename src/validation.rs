@@ -16,10 +16,11 @@ pub fn is_valid_worktree_name(name: &str) -> bool {
         return false;
     }
 
-    if name
-        .bytes()
-        .any(|byte| byte <= 0x1f || byte == 0x7f || matches!(byte, b'~' | b'^' | b':' | b'?' | b'*' | b'\\' | b'[' | b']'))
-    {
+    if name.bytes().any(|byte| {
+        byte <= 0x1f
+            || byte == 0x7f
+            || matches!(byte, b'~' | b'^' | b':' | b'?' | b'*' | b'\\' | b'[' | b']')
+    }) {
         return false;
     }
 

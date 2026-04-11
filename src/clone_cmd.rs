@@ -42,7 +42,10 @@ pub fn run(args: &[OsString]) -> AppResult<()> {
         Some(&target_dir),
     )?;
     if clone.exit_code != 0 {
-        return Err(format!("Error: Failed to clone repository\n{}", clone.stderr.trim()));
+        return Err(format!(
+            "Error: Failed to clone repository\n{}",
+            clone.stderr.trim()
+        ));
     }
 
     fs::write(target_dir.join(".git"), "gitdir: ./.bare\n").map_err(|error| error.to_string())?;
@@ -69,13 +72,19 @@ pub fn run(args: &[OsString]) -> AppResult<()> {
         Some(&target_dir),
     )?;
     if prune.exit_code != 0 {
-        return Err(format!("Error: Failed to configure fetch.prune\n{}", prune.stderr.trim()));
+        return Err(format!(
+            "Error: Failed to configure fetch.prune\n{}",
+            prune.stderr.trim()
+        ));
     }
 
     println!("  Fetching branches...");
     let fetched = git(["fetch", "origin"], Some(&target_dir))?;
     if fetched.exit_code != 0 {
-        return Err(format!("Error: Failed to fetch branches\n{}", fetched.stderr.trim()));
+        return Err(format!(
+            "Error: Failed to fetch branches\n{}",
+            fetched.stderr.trim()
+        ));
     }
 
     let default_branch = detect_default_branch(&target_dir)?;
@@ -89,7 +98,10 @@ pub fn run(args: &[OsString]) -> AppResult<()> {
         Some(&target_dir),
     )?;
     if config_version.exit_code != 0 {
-        return Err(format!("Error: Failed to set gwt.version\n{}", config_version.stderr.trim()));
+        return Err(format!(
+            "Error: Failed to set gwt.version\n{}",
+            config_version.stderr.trim()
+        ));
     }
     let config_branch = git(
         [
@@ -100,7 +112,10 @@ pub fn run(args: &[OsString]) -> AppResult<()> {
         Some(&target_dir),
     )?;
     if config_branch.exit_code != 0 {
-        return Err(format!("Error: Failed to set gwt.defaultBranch\n{}", config_branch.stderr.trim()));
+        return Err(format!(
+            "Error: Failed to set gwt.defaultBranch\n{}",
+            config_branch.stderr.trim()
+        ));
     }
     println!("  Default branch: {}", default_branch);
 
@@ -115,7 +130,10 @@ pub fn run(args: &[OsString]) -> AppResult<()> {
         Some(&target_dir),
     )?;
     if worktree.exit_code != 0 {
-        return Err(format!("Error: Failed to create worktree\n{}", worktree.stderr.trim()));
+        return Err(format!(
+            "Error: Failed to create worktree\n{}",
+            worktree.stderr.trim()
+        ));
     }
 
     let _ = git(
