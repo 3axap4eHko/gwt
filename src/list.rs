@@ -187,26 +187,36 @@ pub fn run(args: &[OsString]) -> AppResult<()> {
 fn parse_options(args: &[OsString]) -> AppResult<ListOptions> {
     let mut options = ListOptions::default();
     for arg in args {
-        match arg_to_str(arg)? {
-            "--json" | "-j" => options.json = true,
-            "--names" | "-n" => options.names = true,
-            "--clean" | "-c" => options.clean = true,
-            "--dirty" | "-d" => options.dirty = true,
-            "--synced" | "-s" => options.synced = true,
-            "--ahead" | "-a" => options.ahead = true,
-            "--behind" | "-b" => options.behind = true,
-            "--no-remote" => options.no_remote = true,
-            "--no-fetch" | "-F" => options.no_fetch = true,
-            "--help" | "-h" => {
-                println!(
-                    "gwt list [--json] [--names] [--clean] [--dirty] [--synced] [--ahead] [--behind] [--no-remote] [--no-fetch]"
-                );
-                return Err(String::new());
+        for flag in split_short_flags(arg_to_str(arg)?) {
+            match flag.as_str() {
+                "--json" | "-j" => options.json = true,
+                "--names" | "-n" => options.names = true,
+                "--clean" | "-c" => options.clean = true,
+                "--dirty" | "-d" => options.dirty = true,
+                "--synced" | "-s" => options.synced = true,
+                "--ahead" | "-a" => options.ahead = true,
+                "--behind" | "-b" => options.behind = true,
+                "--no-remote" => options.no_remote = true,
+                "--no-fetch" | "-F" => options.no_fetch = true,
+                "--help" | "-h" => {
+                    println!(
+                        "gwt list [--json] [--names] [--clean] [--dirty] [--synced] [--ahead] [--behind] [--no-remote] [--no-fetch]"
+                    );
+                    return Err(String::new());
+                }
+                other => return Err(format!("Error: unknown list option '{other}'")),
             }
-            other => return Err(format!("Error: unknown list option '{other}'")),
         }
     }
     Ok(options)
+}
+
+fn split_short_flags(arg: &str) -> Vec<String> {
+    if arg.len() > 2 && arg.starts_with('-') && !arg.starts_with("--") {
+        arg[1..].chars().map(|ch| format!("-{ch}")).collect()
+    } else {
+        vec![arg.to_string()]
+    }
 }
 
 fn load_upstream_map(

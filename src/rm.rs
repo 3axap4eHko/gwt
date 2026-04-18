@@ -177,7 +177,7 @@ fn remove_candidate(
         }
     }
 
-    let branch_deleted = try_delete_branch(root, &candidate.name)?;
+    let branch_deleted = try_delete_branch(root, &candidate.name, force)?;
     println!("Done! Worktree '{}' removed", candidate.name);
     if branch_deleted {
         println!("  Branch '{}' also deleted", candidate.name);
@@ -305,17 +305,18 @@ fn find_tracking_ref(root: &std::path::Path, name: &str) -> AppResult<Option<Str
     }
 }
 
-fn try_delete_branch(root: &std::path::Path, name: &str) -> AppResult<bool> {
+fn try_delete_branch(root: &std::path::Path, name: &str, force: bool) -> AppResult<bool> {
     if let Some(default_branch) = get_default_branch(root) {
         if name == default_branch {
             return Ok(false);
         }
     }
 
+    let flag = if force { "-D" } else { "-d" };
     let output = git(
         [
             OsString::from("branch"),
-            OsString::from("-d"),
+            OsString::from(flag),
             OsString::from(name),
         ],
         Some(root),
