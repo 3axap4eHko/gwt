@@ -9,6 +9,7 @@ struct AddOptions {
     name: String,
     from: Option<String>,
     no_fetch: bool,
+    cache: bool,
 }
 
 pub fn run(args: &[OsString]) -> AppResult<()> {
@@ -112,6 +113,11 @@ pub fn run(args: &[OsString]) -> AppResult<()> {
     }
 
     eprintln!("Done! Worktree created at {}/", options.name);
+
+    if options.cache {
+        crate::cache::apply_all(&root, &worktree_path)?;
+    }
+
     println!("{}", worktree_path.display());
     Ok(())
 }
@@ -120,6 +126,7 @@ fn parse_options(args: &[OsString]) -> AppResult<AddOptions> {
     let mut name = None;
     let mut from = None;
     let mut no_fetch = false;
+    let mut cache = false;
     let mut index = 0;
 
     while index < args.len() {
@@ -132,6 +139,7 @@ fn parse_options(args: &[OsString]) -> AppResult<AddOptions> {
                 from = Some(arg_to_str(value)?.to_string());
             }
             "-n" | "--no-fetch" => no_fetch = true,
+            "--cache" => cache = true,
             value if value.starts_with('-') => {
                 return Err(format!("Error: unknown add option '{value}'"));
             }
@@ -154,6 +162,7 @@ fn parse_options(args: &[OsString]) -> AppResult<AddOptions> {
         name,
         from,
         no_fetch,
+        cache,
     })
 }
 
@@ -214,4 +223,29 @@ fn branch_exists_locally(root: &std::path::Path, name: &str) -> AppResult<bool> 
 
 fn resolve_start_point(root: &std::path::Path, branch: &str) -> AppResult<String> {
     Ok(find_remote_branch(root, branch)?.unwrap_or_else(|| branch.to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::ffi::OsString;
+
+    use super::parse_options;
+
+    #[test]
+    fn parses_cache_before_name() {
+        let options = parse_options(&[OsString::from("--cache"), OsString::from("feature")])
+            .expect("options should parse");
+
+        assert_eq!(options.name, "feature");
+        assert!(options.cache);
+    }
+
+    #[test]
+    fn parses_cache_after_name() {
+        let options = parse_options(&[OsString::from("feature"), OsString::from("--cache")])
+            .expect("options should parse");
+
+        assert_eq!(options.name, "feature");
+        assert!(options.cache);
+    }
 }

@@ -115,16 +115,40 @@ gwt clone git@github.com:user/repo.git my-project
 
 Initialize gwt in an existing bare worktree repository. Use this when you already have a bare repository with worktrees set up manually and want to add gwt management. For new repositories, use `gwt clone` instead.
 
-### `gwt add <name> [-f, --from <branch>] [-n, --no-fetch]`
+### `gwt add <name> [-f, --from <branch>] [-n, --no-fetch] [--cache]`
 
 Create a new worktree. Fetches all remotes first (skip with `-n`). If the branch exists on any remote, it tracks that branch (prefers origin). Otherwise creates a new branch from the specified source (defaults to the default branch).
+Use `--cache` to apply configured cache entries after the worktree is created.
 
 ```bash
 gwt add feature-login           # New branch from default
 gwt add feature-api -f develop  # New branch from develop
 gwt add existing-branch         # Tracks remote if exists
 gwt add quick-fix -n            # Skip fetching remotes
+gwt add feature-login --cache   # Create and link cache entries
 ```
+
+### `gwt cache [unlink|prune [--apply]]`
+
+Link configured worktree targets to content-addressed cache directories. Each cache key is calculated from the configured input files, and the target is symlinked to `.gwt/cache/<hash>`.
+
+Cache entries are configured in the repository config:
+
+```bash
+git config --add gwt.cache.node_modules.input package.json
+git config --add gwt.cache.node_modules.input package-lock.json
+git config gwt.cache.node_modules.target node_modules
+```
+
+```bash
+gwt cache                 # Create/link configured cache targets
+npm ci                    # Populate node_modules through the symlink
+gwt cache unlink          # Restore configured targets from cache
+gwt cache prune           # Show disconnected cache directories
+gwt cache prune --apply   # Remove disconnected cache directories
+```
+
+On a cache miss, `gwt cache` creates an empty cache directory when the target is missing, then symlinks the target to it. If configured input files change while the target is still linked, gwt does not move the target to a new cache key automatically; unlink or rebuild the target explicitly when changing cache inputs.
 
 ### `gwt rm <name...> [-f, --force]`
 
@@ -270,6 +294,8 @@ gwt install /usr/local/bin # Install to custom directory
 
 Update gwt to the latest GitHub release. Compares current version against the latest release and replaces the binary in-place. Supports Linux, macOS, and Windows x64.
 
+Downloads use the platform certificate verifier. To add a PEM CA bundle for update downloads, set `GWT_CA_CERT`. `CURL_CA_BUNDLE` and `SSL_CERT_FILE` are also honored when `GWT_CA_CERT` is not set.
+
 ## Configuration
 
 ### IDE
@@ -302,7 +328,7 @@ repo/
   AGENTS.md       # AI agent instructions (created by clone/init)
 ```
 
-All worktrees must live under the repo root. Moving or creating worktrees outside the root is not supported.
+All worktrees must live directly under the repo root. Moving or creating worktrees outside the root is not supported, and worktree names cannot contain `/`.
 
 ## Troubleshooting
 

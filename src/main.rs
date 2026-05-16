@@ -1,4 +1,5 @@
 mod add;
+mod cache;
 mod cd;
 mod clone_cmd;
 mod edit;
@@ -63,6 +64,7 @@ fn run(args: &[OsString]) -> AppResult<i32> {
         "unlock" => lock::run_unlock(&raw_args[1..]).map(|_| 0),
         "move" => lock::run_move(&raw_args[1..]).map(|_| 0),
         "cd" => cd::run(&raw_args[1..]).map(|_| 0),
+        "cache" => cache::run(&raw_args[1..]).map(|_| 0),
         "edit" => edit::run(&raw_args[1..]).map(|_| 0),
         "run" => run_cmd::run(&raw_args[1..]).map(|_| 0),
         "sync" => sync::run(&raw_args[1..]).map(|_| 0),
@@ -87,6 +89,6 @@ fn arg_to_str(arg: &OsStr) -> AppResult<&str> {
 fn print_usage() {
     println!("gwt {}", repo::get_current_version());
     println!(
-        "Commands: clone init add rm list ls lock unlock move cd edit run sync pr mr shell install update"
+        "Commands: clone init add rm list ls lock unlock move cd cache edit run sync pr mr shell install update"
     );
 }

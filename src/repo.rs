@@ -6,6 +6,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::AppResult;
 
+const CA_CERT_ENV_VARS: [&str; 3] = ["GWT_CA_CERT", "CURL_CA_BUNDLE", "SSL_CERT_FILE"];
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WorktreeInfo {
     pub path: PathBuf,
@@ -415,44 +417,116 @@ pub fn git_string<const N: usize>(root: &Path, args: [&str; N]) -> AppResult<Opt
 }
 
 pub fn http_get_text(url: &str, headers: &[(&str, &str)]) -> AppResult<String> {
-    let mut command = Command::new("curl");
-    command.arg("-fsSL");
-    for (name, value) in headers {
-        command.arg("-H").arg(format!("{}: {}", name, value));
-    }
-    command.arg(url);
-    let output = command
-        .output()
-        .map_err(|error| format!("Error: failed to run curl\n{}", error))?;
-    if !output.status.success() {
-        return Err(format!(
-            "curl failed (exit {}): {}",
-            output.status.code().unwrap_or(1),
-            String::from_utf8_lossy(&output.stderr).trim()
-        ));
-    }
-    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+    let client = http_client()?;
+    let response = add_headers(client.get(url), headers)
+        .send()
+        .and_then(reqwest::blocking::Response::error_for_status)
+        .map_err(|error| format!("Error: failed to download {url}\n{error}"))?;
+    response
+        .text()
+        .map_err(|error| format!("Error: failed to read response from {url}\n{error}"))
 }
 
 pub fn download_to_path(url: &str, path: &Path, headers: &[(&str, &str)]) -> AppResult<()> {
-    let mut command = Command::new("curl");
-    command.arg("-fsSL");
-    for (name, value) in headers {
-        command.arg("-H").arg(format!("{}: {}", name, value));
-    }
-    command.arg("-o").arg(path).arg(url);
-    let status = command
-        .status()
-        .map_err(|error| format!("Error: failed to run curl\n{}", error))?;
-    if !status.success() {
-        return Err(format!("curl failed (exit {})", status.code().unwrap_or(1)));
+    let client = http_client()?;
+    let mut response = add_headers(client.get(url), headers)
+        .send()
+        .and_then(reqwest::blocking::Response::error_for_status)
+        .map_err(|error| format!("Error: failed to download {url}\n{error}"))?;
+    let mut file = fs::File::create(path).map_err(|error| {
+        format!(
+            "Error: failed to create download target {}: {}",
+            path.display(),
+            error
+        )
+    })?;
+    if let Err(error) = std::io::copy(&mut response, &mut file) {
+        let remove_error = fs::remove_file(path).err();
+        return match remove_error {
+            Some(remove_error) => Err(format!(
+                "Error: failed to write download target {}: {}; failed to remove partial file: {}",
+                path.display(),
+                error,
+                remove_error
+            )),
+            None => Err(format!(
+                "Error: failed to write download target {}: {}",
+                path.display(),
+                error
+            )),
+        };
     }
     Ok(())
 }
 
+fn add_headers(
+    mut request: reqwest::blocking::RequestBuilder,
+    headers: &[(&str, &str)],
+) -> reqwest::blocking::RequestBuilder {
+    for (name, value) in headers {
+        request = request.header(*name, *value);
+    }
+    request
+}
+
+fn http_client() -> AppResult<reqwest::blocking::Client> {
+    let builder = match custom_ca_cert_path() {
+        Some((env_name, path)) => reqwest::blocking::Client::builder()
+            .tls_certs_merge(read_ca_cert_bundle(env_name, &path)?),
+        None => reqwest::blocking::Client::builder(),
+    };
+    builder
+        .build()
+        .map_err(|error| format!("Error: failed to create HTTP client\n{error}"))
+}
+
+fn read_ca_cert_bundle(env_name: &str, path: &Path) -> AppResult<Vec<reqwest::Certificate>> {
+    let bytes = fs::read(path).map_err(|error| {
+        format!(
+            "Error: failed to read {env_name} certificate bundle {}: {}",
+            path.display(),
+            error
+        )
+    })?;
+    let certs = reqwest::Certificate::from_pem_bundle(&bytes).map_err(|error| {
+        format!(
+            "Error: failed to parse {env_name} certificate bundle {}: {}",
+            path.display(),
+            error
+        )
+    })?;
+    if certs.is_empty() {
+        return Err(format!(
+            "Error: {env_name} certificate bundle {} does not contain any PEM certificates",
+            path.display()
+        ));
+    }
+    Ok(certs)
+}
+
+fn custom_ca_cert_path() -> Option<(&'static str, PathBuf)> {
+    custom_ca_cert_path_from(std::env::var_os)
+}
+
+fn custom_ca_cert_path_from(
+    mut get_var: impl FnMut(&'static str) -> Option<OsString>,
+) -> Option<(&'static str, PathBuf)> {
+    for name in CA_CERT_ENV_VARS {
+        if let Some(value) = get_var(name)
+            && !value.is_empty()
+        {
+            return Some((name, PathBuf::from(value)));
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{extract_config_value, parse_worktree_list};
+    use std::ffi::OsString;
+    use std::path::PathBuf;
+
+    use super::{custom_ca_cert_path_from, extract_config_value, parse_worktree_list};
 
     #[test]
     fn parses_worktree_list() {
@@ -476,6 +550,36 @@ mod tests {
         assert_eq!(
             extract_config_value(content, "gwt", "defaultBranch").as_deref(),
             Some("master")
+        );
+    }
+
+    #[test]
+    fn custom_ca_cert_path_uses_first_configured_env_var() {
+        let path = custom_ca_cert_path_from(|name| match name {
+            "GWT_CA_CERT" => Some(OsString::from("/custom/gwt-ca.pem")),
+            "CURL_CA_BUNDLE" => Some(OsString::from("/custom/curl-ca.pem")),
+            "SSL_CERT_FILE" => Some(OsString::from("/custom/ssl-ca.pem")),
+            _ => None,
+        });
+
+        assert_eq!(
+            path,
+            Some(("GWT_CA_CERT", PathBuf::from("/custom/gwt-ca.pem")))
+        );
+    }
+
+    #[test]
+    fn custom_ca_cert_path_skips_empty_env_vars() {
+        let path = custom_ca_cert_path_from(|name| match name {
+            "GWT_CA_CERT" => Some(OsString::new()),
+            "CURL_CA_BUNDLE" => Some(OsString::from("/custom/curl-ca.pem")),
+            "SSL_CERT_FILE" => Some(OsString::from("/custom/ssl-ca.pem")),
+            _ => None,
+        });
+
+        assert_eq!(
+            path,
+            Some(("CURL_CA_BUNDLE", PathBuf::from("/custom/curl-ca.pem")))
         );
     }
 }

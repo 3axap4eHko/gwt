@@ -6,11 +6,9 @@ pub fn is_valid_worktree_name(name: &str) -> bool {
         return false;
     }
     if name.contains("..")
-        || name.starts_with('/')
         || name.starts_with('-')
-        || name.ends_with('/')
         || name.ends_with(".lock")
-        || name.contains("//")
+        || name.contains('/')
         || name.contains("@{")
     {
         return false;
@@ -46,13 +44,13 @@ mod tests {
     #[test]
     fn rejects_invalid_patterns() {
         assert!(!is_valid_worktree_name("../foo"));
-        assert!(!is_valid_worktree_name("foo//bar"));
+        assert!(!is_valid_worktree_name("feature/login"));
         assert!(!is_valid_worktree_name("foo.lock"));
     }
 
     #[test]
-    fn accepts_normal_branch_like_names() {
-        assert!(is_valid_worktree_name("feature/login"));
+    fn accepts_normal_worktree_names() {
+        assert!(is_valid_worktree_name("feature-login"));
         assert!(is_valid_worktree_name("master"));
     }
 }

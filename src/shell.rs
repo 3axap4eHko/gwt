@@ -16,10 +16,13 @@ gwt() {
 _gwt_completions() {
   local cur=${COMP_WORDS[COMP_CWORD]}
   if [[ $COMP_CWORD -eq 1 ]]; then
-    COMPREPLY=($(compgen -W "clone init add rm list ls lock unlock move cd edit run sync pr mr shell install update" -- "$cur"))
+    COMPREPLY=($(compgen -W "clone init add rm list ls lock unlock move cd cache edit run sync pr mr shell install update" -- "$cur"))
     return
   fi
   case "${COMP_WORDS[1]}" in
+    cache)
+      COMPREPLY=($(compgen -W "unlink prune" -- "$cur"))
+      ;;
     cd|edit|rm|sync|pr|mr|lock|unlock|move|run)
       COMPREPLY=($(compgen -W "$(command gwt list --names 2>/dev/null)" -- "$cur"))
       ;;
@@ -39,12 +42,17 @@ gwt() {
 
 _gwt() {
   local -a commands
-  commands=(clone init add rm list ls lock unlock move cd edit run sync pr mr shell install update)
+  commands=(clone init add rm list ls lock unlock move cd cache edit run sync pr mr shell install update)
   if (( CURRENT == 2 )); then
     _describe 'command' commands
     return
   fi
   case "${words[2]}" in
+    cache)
+      local -a cache_commands
+      cache_commands=(unlink prune)
+      _describe 'cache command' cache_commands
+      ;;
     cd|edit|rm|sync|pr|mr|lock|unlock|move|run)
       local -a worktrees
       worktrees=(${(f)"$(command gwt list --names 2>/dev/null)"})
@@ -74,6 +82,7 @@ complete -c gwt -n '__fish_use_subcommand' -a lock
 complete -c gwt -n '__fish_use_subcommand' -a unlock
 complete -c gwt -n '__fish_use_subcommand' -a move
 complete -c gwt -n '__fish_use_subcommand' -a cd
+complete -c gwt -n '__fish_use_subcommand' -a cache
 complete -c gwt -n '__fish_use_subcommand' -a edit
 complete -c gwt -n '__fish_use_subcommand' -a run
 complete -c gwt -n '__fish_use_subcommand' -a sync
@@ -82,6 +91,8 @@ complete -c gwt -n '__fish_use_subcommand' -a mr
 complete -c gwt -n '__fish_use_subcommand' -a shell
 complete -c gwt -n '__fish_use_subcommand' -a install
 complete -c gwt -n '__fish_use_subcommand' -a update
+complete -c gwt -n '__fish_seen_subcommand_from cache' -a unlink
+complete -c gwt -n '__fish_seen_subcommand_from cache' -a prune
 
 for cmd in cd edit rm sync pr mr lock unlock move run
   complete -c gwt -n "__fish_seen_subcommand_from $cmd" -a '(command gwt list --names 2>/dev/null)'
@@ -102,11 +113,18 @@ function gwt {
 Register-ArgumentCompleter -CommandName gwt -ScriptBlock {
   param($commandName, $parameterName, $wordToComplete, $commandAst, $fakeBoundParameters)
 
-  $commands = @('clone', 'init', 'add', 'rm', 'list', 'ls', 'lock', 'unlock', 'move', 'cd', 'edit', 'run', 'sync', 'pr', 'mr', 'shell', 'install', 'update')
+  $commands = @('clone', 'init', 'add', 'rm', 'list', 'ls', 'lock', 'unlock', 'move', 'cd', 'cache', 'edit', 'run', 'sync', 'pr', 'mr', 'shell', 'install', 'update')
   $tokens = @($commandAst.CommandElements | Select-Object -Skip 1 | ForEach-Object { $_.Extent.Text })
 
   if ($tokens.Count -le 1) {
     $commands | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
+      [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
+    }
+    return
+  }
+
+  if ($tokens[0] -eq 'cache') {
+    @('unlink', 'prune') | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
       [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
     }
     return
