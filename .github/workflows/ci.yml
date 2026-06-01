@@ -9,7 +9,7 @@ on:
     branches: [master]
 
 env:
-  RUST_TOOLCHAIN: 1.85.0
+  RUST_TOOLCHAIN: 1.96.0
 
 jobs:
   test:

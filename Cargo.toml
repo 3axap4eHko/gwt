@@ -9,7 +9,7 @@ repository = "https://github.com/3axap4eHko/gwt"
 homepage = "https://github.com/3axap4eHko/gwt"
 readme = "README.md"
 keywords = ["git", "worktree", "cli"]
-rust-version = "1.85"
+rust-version = "1.96"
 
 [[bin]]
 name = "gwt"
