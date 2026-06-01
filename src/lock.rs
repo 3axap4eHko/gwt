@@ -57,22 +57,9 @@ pub fn run_unlock(args: &[OsString]) -> AppResult<()> {
 }
 
 pub fn run_move(args: &[OsString]) -> AppResult<()> {
-    if args.len() != 2 {
-        return Err("Error: move requires <name> <new-path>".to_string());
-    }
-    let name = arg_to_str(&args[0])?.to_string();
-    let new_path = arg_to_str(&args[1])?.to_string();
-    if !is_valid_worktree_name(&name) {
-        return Err("Error: Invalid worktree name".to_string());
-    }
+    let (name, new_name) = parse_move_args(args)?;
     let root = ensure_gwt_setup()?;
-    let dest = root.join(&new_path);
-    let relative = dest
-        .strip_prefix(&root)
-        .map_err(|_| "Error: Destination must be inside the repo root".to_string())?;
-    if relative.as_os_str().is_empty() {
-        return Err("Error: Destination must be inside the repo root".to_string());
-    }
+    let dest = root.join(&new_name);
     let result = git(
         [
             OsString::from("worktree"),
@@ -88,8 +75,23 @@ pub fn run_move(args: &[OsString]) -> AppResult<()> {
             result.stderr.trim()
         ));
     }
-    println!("Moved '{}' to '{}'", name, new_path);
+    println!("Moved '{}' to '{}'", name, new_name);
     Ok(())
+}
+
+fn parse_move_args(args: &[OsString]) -> AppResult<(String, String)> {
+    if args.len() != 2 {
+        return Err("Error: move requires <name> <new-name>".to_string());
+    }
+    let name = arg_to_str(&args[0])?.to_string();
+    let new_name = arg_to_str(&args[1])?.to_string();
+    if !is_valid_worktree_name(&name) {
+        return Err("Error: Invalid worktree name".to_string());
+    }
+    if !is_valid_worktree_name(&new_name) {
+        return Err("Error: Invalid destination worktree name".to_string());
+    }
+    Ok((name, new_name))
 }
 
 fn parse_lock_args(args: &[OsString]) -> AppResult<(String, Option<String>)> {
@@ -134,4 +136,33 @@ fn single_name(args: &[OsString], command: &str) -> AppResult<String> {
         return Err("Error: Invalid worktree name".to_string());
     }
     Ok(name)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::ffi::OsString;
+
+    use super::parse_move_args;
+
+    #[test]
+    fn parses_flat_move_destination() {
+        let result = parse_move_args(&[OsString::from("feature"), OsString::from("renamed")]);
+
+        assert_eq!(result, Ok(("feature".to_string(), "renamed".to_string())));
+    }
+
+    #[test]
+    fn rejects_nested_move_destination() {
+        let result =
+            parse_move_args(&[OsString::from("feature"), OsString::from("nested/renamed")]);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn rejects_parent_move_destination() {
+        let result = parse_move_args(&[OsString::from("feature"), OsString::from("../renamed")]);
+
+        assert!(result.is_err());
+    }
 }

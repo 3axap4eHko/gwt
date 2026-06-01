@@ -1,3 +1,5 @@
+use std::path::{Component, Path};
+
 pub fn is_valid_worktree_name(name: &str) -> bool {
     if name.is_empty() || name.trim().is_empty() {
         return false;
@@ -31,9 +33,35 @@ pub fn is_valid_worktree_name(name: &str) -> bool {
     true
 }
 
+pub fn is_valid_worktree_relative_path(path: &Path) -> bool {
+    let Some(value) = path.to_str() else {
+        return false;
+    };
+    if value.is_empty() || value.contains('\\') {
+        return false;
+    }
+
+    let mut has_part = false;
+    for component in path.components() {
+        match component {
+            Component::Normal(_) => has_part = true,
+            Component::CurDir
+            | Component::ParentDir
+            | Component::RootDir
+            | Component::Prefix(_) => {
+                return false;
+            }
+        }
+    }
+
+    has_part
+}
+
 #[cfg(test)]
 mod tests {
-    use super::is_valid_worktree_name;
+    use std::path::Path;
+
+    use super::{is_valid_worktree_name, is_valid_worktree_relative_path};
 
     #[test]
     fn rejects_reserved_names() {
@@ -52,5 +80,26 @@ mod tests {
     fn accepts_normal_worktree_names() {
         assert!(is_valid_worktree_name("feature-login"));
         assert!(is_valid_worktree_name("master"));
+    }
+
+    #[test]
+    fn rejects_paths_outside_worktree() {
+        assert!(!is_valid_worktree_relative_path(Path::new("")));
+        assert!(!is_valid_worktree_relative_path(Path::new(".")));
+        assert!(!is_valid_worktree_relative_path(Path::new("..")));
+        assert!(!is_valid_worktree_relative_path(Path::new(
+            "../node_modules"
+        )));
+        assert!(!is_valid_worktree_relative_path(Path::new("/tmp/cache")));
+        assert!(!is_valid_worktree_relative_path(Path::new("apps\\web")));
+    }
+
+    #[test]
+    fn accepts_paths_inside_worktree() {
+        assert!(is_valid_worktree_relative_path(Path::new("node_modules")));
+        assert!(is_valid_worktree_relative_path(Path::new(
+            "apps/web/node_modules"
+        )));
+        assert!(is_valid_worktree_relative_path(Path::new(".venv")));
     }
 }

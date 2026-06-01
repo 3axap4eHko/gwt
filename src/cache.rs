@@ -8,7 +8,7 @@ use sha2::{Digest, Sha256};
 use crate::AppResult;
 use crate::arg_to_str;
 use crate::repo::{ensure_gwt_setup, get_worktrees, git};
-use crate::validation::is_valid_worktree_name;
+use crate::validation::{is_valid_worktree_name, is_valid_worktree_relative_path};
 
 pub struct CacheEntry {
     pub inputs: Vec<PathBuf>,
@@ -139,9 +139,10 @@ fn apply_entry(root: &Path, worktree: &Path, entry: &CacheEntry) -> AppResult<()
     let hash = hash_inputs(worktree, &entry.inputs)?;
     let store_dir = cache_root(root).join(&hash);
     let target_path = worktree.join(&entry.target);
+    ensure_parent_inside_worktree(worktree, &target_path)?;
 
     if !store_dir.exists() {
-        prepare_cache_dir(root, &hash, &target_path, &entry.target)?;
+        prepare_cache_dir(root, worktree, &hash, &target_path, &entry.target)?;
     }
 
     match fs::symlink_metadata(&target_path) {
@@ -167,6 +168,7 @@ fn apply_entry(root: &Path, worktree: &Path, entry: &CacheEntry) -> AppResult<()
                     )
                 })?;
             } else {
+                ensure_existing_path_inside_worktree(worktree, &target_path)?;
                 return Err(format!(
                     "Error: '{}' already exists as a real path; run 'gwt cache unlink' first or move it aside",
                     target_path.display()
@@ -210,6 +212,7 @@ fn detach_entry(
     entry: &CacheEntry,
 ) -> AppResult<()> {
     let target_path = worktree.join(&entry.target);
+    ensure_parent_inside_worktree(worktree, &target_path)?;
     let meta = match fs::symlink_metadata(&target_path) {
         Ok(meta) => meta,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
@@ -331,15 +334,19 @@ fn parse_entries(raw: &str) -> AppResult<Vec<CacheEntry>> {
                 "Error: cache entry '{name}' has no 'input' configured"
             ));
         }
+        for input in &raw.inputs {
+            if !is_valid_worktree_relative_path(input) {
+                return Err(format!(
+                    "Error: cache entry '{name}' input must stay inside the worktree"
+                ));
+            }
+        }
         let target = raw
             .target
             .ok_or_else(|| format!("Error: cache entry '{name}' has no 'target' configured"))?;
-        if target.as_os_str().is_empty() {
-            return Err(format!("Error: cache entry '{name}' has empty 'target'"));
-        }
-        if target.is_absolute() {
+        if !is_valid_worktree_relative_path(&target) {
             return Err(format!(
-                "Error: cache entry '{name}' target must be relative to the worktree"
+                "Error: cache entry '{name}' target must stay inside the worktree"
             ));
         }
         entries.push(CacheEntry {
@@ -362,10 +369,14 @@ pub fn hash_inputs(worktree: &Path, inputs: &[PathBuf]) -> AppResult<String> {
 
     let mut hasher = Sha256::new();
     for input in ordered {
+        if !is_valid_worktree_relative_path(input) {
+            return Err("Error: cache input path must stay inside the worktree".to_string());
+        }
         let rel = input
             .to_str()
             .ok_or_else(|| "Error: cache input path is not valid UTF-8".to_string())?;
         let full = worktree.join(input);
+        ensure_existing_path_inside_worktree(worktree, &full)?;
         let bytes = fs::read(&full).map_err(|error| {
             format!(
                 "Error: failed to read cache input '{}': {}",
@@ -382,6 +393,67 @@ pub fn hash_inputs(worktree: &Path, inputs: &[PathBuf]) -> AppResult<String> {
     Ok(hex_encode(&digest))
 }
 
+fn ensure_existing_path_inside_worktree(worktree: &Path, path: &Path) -> AppResult<()> {
+    let root = canonical_worktree(worktree)?;
+    let resolved = fs::canonicalize(path).map_err(|error| {
+        format!(
+            "Error: failed to resolve cache path {}: {}",
+            path.display(),
+            error
+        )
+    })?;
+    if resolved.starts_with(&root) {
+        Ok(())
+    } else {
+        Err(format!(
+            "Error: cache path {} must stay inside the worktree",
+            path.display()
+        ))
+    }
+}
+
+fn ensure_parent_inside_worktree(worktree: &Path, path: &Path) -> AppResult<()> {
+    let root = canonical_worktree(worktree)?;
+    let parent = path
+        .parent()
+        .ok_or_else(|| format!("Error: cache path {} has no parent", path.display()))?;
+    let existing = nearest_existing_ancestor(parent).ok_or_else(|| {
+        format!(
+            "Error: failed to find existing parent for cache path {}",
+            path.display()
+        )
+    })?;
+    let resolved = fs::canonicalize(existing).map_err(|error| {
+        format!(
+            "Error: failed to resolve cache path {}: {}",
+            existing.display(),
+            error
+        )
+    })?;
+    if resolved.starts_with(&root) {
+        Ok(())
+    } else {
+        Err(format!(
+            "Error: cache path {} must stay inside the worktree",
+            path.display()
+        ))
+    }
+}
+
+fn canonical_worktree(worktree: &Path) -> AppResult<PathBuf> {
+    fs::canonicalize(worktree).map_err(|error| {
+        format!(
+            "Error: failed to resolve worktree path {}: {}",
+            worktree.display(),
+            error
+        )
+    })
+}
+
+fn nearest_existing_ancestor(path: &Path) -> Option<&Path> {
+    path.ancestors().find(|ancestor| ancestor.exists())
+}
+
 fn hex_encode(bytes: &[u8]) -> String {
     const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut out = String::with_capacity(bytes.len() * 2);
@@ -392,10 +464,17 @@ fn hex_encode(bytes: &[u8]) -> String {
     out
 }
 
-fn prepare_cache_dir(root: &Path, hash: &str, target_path: &Path, target: &Path) -> AppResult<()> {
+fn prepare_cache_dir(
+    root: &Path,
+    worktree: &Path,
+    hash: &str,
+    target_path: &Path,
+    target: &Path,
+) -> AppResult<()> {
     let cache_dir = cache_root(root);
     fs::create_dir_all(&cache_dir)
         .map_err(|error| format!("Error: failed to create {}: {}", cache_dir.display(), error))?;
+    ensure_parent_inside_worktree(worktree, target_path)?;
 
     let meta = match fs::symlink_metadata(target_path) {
         Ok(meta) => meta,
@@ -437,6 +516,7 @@ fn prepare_cache_dir(root: &Path, hash: &str, target_path: &Path, target: &Path)
             target.display()
         ));
     }
+    ensure_existing_path_inside_worktree(worktree, target_path)?;
 
     let final_dir = cache_dir.join(hash);
     fs::rename(target_path, &final_dir).map_err(|error| {
@@ -576,8 +656,12 @@ fn cache_store_hashes(root: &Path) -> AppResult<BTreeSet<String>> {
 fn cache_ref_counts(root: &Path, entries: &[CacheEntry]) -> AppResult<BTreeMap<String, usize>> {
     let mut counts = BTreeMap::new();
     for worktree in get_worktrees(root)? {
+        if !worktree.path.exists() {
+            continue;
+        }
         for entry in entries {
             let target = worktree.path.join(&entry.target);
+            ensure_parent_inside_worktree(&worktree.path, &target)?;
             if let Some(hash) = cache_link_hash(&target)? {
                 *counts.entry(hash).or_insert(0) += 1;
             }
@@ -779,6 +863,28 @@ mod tests {
     }
 
     #[test]
+    fn parses_rejects_target_outside_worktree() {
+        let raw = "gwt.cache.x.input lock\n\
+                   gwt.cache.x.target ../node_modules\n";
+        assert!(parse_entries(raw).is_err());
+    }
+
+    #[test]
+    fn parses_rejects_input_outside_worktree() {
+        let raw = "gwt.cache.x.input ../lock\n\
+                   gwt.cache.x.target node_modules\n";
+        assert!(parse_entries(raw).is_err());
+    }
+
+    #[test]
+    fn parses_accepts_nested_target_inside_worktree() {
+        let raw = "gwt.cache.x.input apps/web/package-lock.json\n\
+                   gwt.cache.x.target apps/web/node_modules\n";
+        let entries = parse_entries(raw).expect("parse");
+        assert_eq!(entries[0].target, Path::new("apps/web/node_modules"));
+    }
+
+    #[test]
     fn adopt_target_moves_existing_directory_into_cache() {
         let tmp = std::env::temp_dir().join(format!("gwt-cache-adopt-test-{}", std::process::id()));
         fs::remove_dir_all(&tmp).ok();
@@ -787,7 +893,7 @@ mod tests {
         fs::create_dir_all(&target).unwrap();
         fs::write(target.join("marker"), b"cached").unwrap();
 
-        prepare_cache_dir(&tmp, HASH, &target, Path::new("node_modules")).unwrap();
+        prepare_cache_dir(&tmp, &worktree, HASH, &target, Path::new("node_modules")).unwrap();
 
         assert!(!target.exists());
         assert_eq!(
@@ -803,7 +909,7 @@ mod tests {
         fs::remove_dir_all(&tmp).ok();
         let target = tmp.join("feature").join("node_modules");
 
-        prepare_cache_dir(&tmp, HASH, &target, Path::new("node_modules")).unwrap();
+        prepare_cache_dir(&tmp, &tmp, HASH, &target, Path::new("node_modules")).unwrap();
 
         assert!(tmp.join(".gwt").join("cache").join(HASH).is_dir());
         assert!(!target.exists());
@@ -883,6 +989,48 @@ mod tests {
         fs::remove_dir_all(&tmp).ok();
         assert_eq!(h1, h2);
         assert_eq!(h1.len(), 64);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn hash_inputs_rejects_symlink_outside_worktree() {
+        let tmp = std::env::temp_dir().join(format!(
+            "gwt-cache-input-containment-test-{}",
+            std::process::id()
+        ));
+        fs::remove_dir_all(&tmp).ok();
+        let worktree = tmp.join("worktree");
+        let outside = tmp.join("outside");
+        fs::create_dir_all(&worktree).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        fs::write(outside.join("lock"), b"outside").unwrap();
+        std::os::unix::fs::symlink(outside.join("lock"), worktree.join("lock")).unwrap();
+
+        let result = hash_inputs(&worktree, &[PathBuf::from("lock")]);
+
+        assert!(result.is_err());
+        fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cache_target_rejects_symlink_parent_outside_worktree() {
+        let tmp = std::env::temp_dir().join(format!(
+            "gwt-cache-target-containment-test-{}",
+            std::process::id()
+        ));
+        fs::remove_dir_all(&tmp).ok();
+        let worktree = tmp.join("worktree");
+        let outside = tmp.join("outside");
+        fs::create_dir_all(&worktree).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        std::os::unix::fs::symlink(&outside, worktree.join("apps")).unwrap();
+
+        let result =
+            ensure_parent_inside_worktree(&worktree, &worktree.join("apps/web/node_modules"));
+
+        assert!(result.is_err());
+        fs::remove_dir_all(&tmp).ok();
     }
 
     #[test]

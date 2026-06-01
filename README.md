@@ -130,7 +130,7 @@ gwt add feature-login --cache   # Create and link cache entries
 
 ### `gwt cache [unlink|prune [--apply]]`
 
-Link configured worktree targets to content-addressed cache directories. Each cache key is calculated from the configured input files, and the target is symlinked to `.gwt/cache/<hash>`.
+Link configured worktree targets to content-addressed cache directories. Each cache key is calculated from the configured input files, and the target is symlinked to `.gwt/cache/<hash>`. Input and target paths must stay inside the worktree; nested targets such as `apps/web/node_modules` are supported.
 
 Cache entries are configured in the repository config:
 
@@ -150,13 +150,14 @@ gwt cache prune --apply   # Remove disconnected cache directories
 
 On a cache miss, `gwt cache` creates an empty cache directory when the target is missing, then symlinks the target to it. If configured input files change while the target is still linked, gwt does not move the target to a new cache key automatically; unlink or rebuild the target explicitly when changing cache inputs.
 
-### `gwt rm <name...> [-f, --force]`
+### `gwt rm <name...> [-f, --force] [-n, --no-fetch]`
 
-Remove one or more worktrees. By default, checks for uncommitted changes and unpushed commits. When removing multiple worktrees, continues past failures and reports a summary.
+Remove one or more worktrees. By default, fetches all remotes, then checks for uncommitted changes and unpushed commits. Use `--no-fetch` to use local refs without fetching first. When removing multiple worktrees, continues past failures and reports a summary.
 
 ```bash
 gwt rm feature-done
 gwt rm feature-wip -f           # Skip safety checks
+gwt rm feature-done -n          # Skip fetch, keep local safety checks
 gwt rm a b c                    # Remove multiple worktrees
 gwt rm $(gwt list --synced --names)  # Remove all synced worktrees
 ```
@@ -265,9 +266,9 @@ gwt lock feature -r "do not touch"  # Lock with reason
 
 Unlock a previously locked worktree.
 
-### `gwt move <name> <new-path>`
+### `gwt move <name> <new-name>`
 
-Move a worktree to a new path. The destination must be inside the repo root.
+Move a worktree to a new flat name under the repo root. This changes the worktree directory name, not the branch name.
 
 ### `gwt shell [type]`
 

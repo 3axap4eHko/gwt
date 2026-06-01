@@ -8,14 +8,17 @@ on:
   pull_request:
     branches: [master]
 
+env:
+  RUST_TOOLCHAIN: 1.85.0
+
 jobs:
   test:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
-      - run: rustup toolchain install stable --profile minimal --component clippy
-      - run: cargo test --locked
-      - run: cargo clippy --locked --all-targets --all-features
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - run: rustup toolchain install ${{ env.RUST_TOOLCHAIN }} --profile minimal --component clippy
+      - run: cargo +${{ env.RUST_TOOLCHAIN }} test --locked
+      - run: cargo +${{ env.RUST_TOOLCHAIN }} clippy --locked --all-targets --all-features
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -43,9 +46,9 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v6
-      - run: rustup toolchain install stable --profile minimal
-      - run: cargo build --locked --release
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - run: rustup toolchain install ${{ env.RUST_TOOLCHAIN }} --profile minimal
+      - run: cargo +${{ env.RUST_TOOLCHAIN }} build --locked --release
       - name: Upload to release
         shell: bash
         run: |
