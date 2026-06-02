@@ -172,7 +172,7 @@ gwt list --json   # JSON output for scripting
 gwt list --names  # Bare names, one per line
 ```
 
-Filters narrow the output. Multiple filters AND together. Sync-related filters fetch all remotes by default (skip with `-n`/`--no-fetch`).
+Filters narrow the output. Multiple filters AND together. Sync-related filters fetch all remotes by default (skip with `-F`/`--no-fetch`).
 
 ```bash
 # Working tree status
@@ -188,7 +188,7 @@ gwt list --no-remote          # No remote tracking branch
 # Combine filters
 gwt list --clean --synced --names   # Safe to remove, pipe to xargs
 gwt list --dirty --json             # Dirty worktrees as JSON
-gwt list --synced -n                # Skip fetch, use local refs
+gwt list --synced -F                # Skip fetch, use local refs
 ```
 
 ### `gwt cd [name]`
@@ -221,7 +221,7 @@ gwt run echo hello                      # Interactive worktree selector
 gwt run -w master -- npm test --watch   # Use -- before child flags
 ```
 
-The child process inherits stdin/stdout/stderr. If the command exits with a non-zero code, gwt exits with the same code. Signals (SIGINT, SIGTERM, etc.) are forwarded to the child process.
+The child process inherits stdin/stdout/stderr and runs in the same foreground process group, so terminal signals such as Ctrl-C (SIGINT) reach it directly. If the command exits with a non-zero code, gwt exits with the same code.
 
 ### `gwt sync [name] [-n, --no-fetch]`
 
