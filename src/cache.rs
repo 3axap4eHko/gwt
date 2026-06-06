@@ -49,12 +49,10 @@ fn run_unlink(root: &Path, args: &[OsString]) -> AppResult<()> {
 }
 
 fn run_prune(root: &Path, args: &[OsString]) -> AppResult<()> {
-    let mut apply = false;
-    for arg in args {
+    if let Some(arg) = args.first() {
         match arg_to_str(arg)? {
-            "--apply" => apply = true,
             "--help" | "-h" => {
-                println!("gwt cache prune [--apply]");
+                println!("gwt cache prune");
                 return Ok(());
             }
             other => return Err(format!("Error: unknown cache prune option '{other}'")),
@@ -66,15 +64,6 @@ fn run_prune(root: &Path, args: &[OsString]) -> AppResult<()> {
     let disconnected = disconnected_cache_dirs(root, &counts)?;
     if disconnected.is_empty() {
         println!("No disconnected cache directories");
-        return Ok(());
-    }
-
-    if !apply {
-        println!("Disconnected cache directories:");
-        for dir in &disconnected {
-            println!("  {}", dir.display());
-        }
-        println!("Run 'gwt cache prune --apply' to remove them");
         return Ok(());
     }
 
@@ -92,7 +81,7 @@ fn run_prune(root: &Path, args: &[OsString]) -> AppResult<()> {
 }
 
 fn print_usage() {
-    println!("gwt cache [unlink|prune [--apply]]");
+    println!("gwt cache [unlink|prune]");
 }
 
 pub fn apply_all(root: &Path, worktree: &Path) -> AppResult<()> {

@@ -239,10 +239,10 @@ fn load_upstream_map(
         if line.is_empty() {
             continue;
         }
-        if let Some((branch, upstream)) = line.split_once(' ') {
-            if !upstream.trim().is_empty() {
-                map.insert(branch.to_string(), upstream.trim().to_string());
-            }
+        if let Some((branch, upstream)) = line.split_once(' ')
+            && !upstream.trim().is_empty()
+        {
+            map.insert(branch.to_string(), upstream.trim().to_string());
         }
     }
     Ok(map)
@@ -326,10 +326,10 @@ fn print_json(worktrees: &[EnrichedWorktree]) {
             "    \"locked\": {}",
             worktree.info.locked.is_some()
         ));
-        if let Some(reason) = &worktree.info.locked {
-            if !reason.is_empty() {
-                fields.push(format!("    \"lockReason\": {}", json_string(reason)));
-            }
+        if let Some(reason) = &worktree.info.locked
+            && !reason.is_empty()
+        {
+            fields.push(format!("    \"lockReason\": {}", json_string(reason)));
         }
         if worktree.sync_checked {
             fields.push(format!(

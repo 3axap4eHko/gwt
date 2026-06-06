@@ -88,16 +88,16 @@ fn should_detach_editor(ide: &str) -> bool {
 
 fn detect_ide(root: &std::path::Path) -> AppResult<Option<String>> {
     let configured = git_string(root, ["config", "gwt.ide"])?;
-    if let Some(ide) = configured {
-        if !ide.is_empty() {
-            return Ok(Some(ide));
-        }
+    if let Some(ide) = configured
+        && !ide.is_empty()
+    {
+        return Ok(Some(ide));
     }
 
-    if let Ok(visual) = std::env::var("VISUAL") {
-        if !visual.is_empty() {
-            return Ok(Some(visual));
-        }
+    if let Ok(visual) = std::env::var("VISUAL")
+        && !visual.is_empty()
+    {
+        return Ok(Some(visual));
     }
 
     for ide in ["zed", "nvim", "cursor", "code"] {
@@ -106,10 +106,10 @@ fn detect_ide(root: &std::path::Path) -> AppResult<Option<String>> {
         }
     }
 
-    if let Ok(editor) = std::env::var("EDITOR") {
-        if !editor.is_empty() {
-            return Ok(Some(editor));
-        }
+    if let Ok(editor) = std::env::var("EDITOR")
+        && !editor.is_empty()
+    {
+        return Ok(Some(editor));
     }
 
     Ok(None)

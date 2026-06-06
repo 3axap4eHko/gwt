@@ -90,25 +90,23 @@ pub fn run(args: &[OsString]) -> AppResult<()> {
         ));
     }
 
-    if local_branch_exists {
-        if let Some(remote_ref) = remote_ref {
-            let has_upstream = git(
+    if local_branch_exists && let Some(remote_ref) = remote_ref {
+        let has_upstream = git(
+            [
+                OsString::from("config"),
+                OsString::from(format!("branch.{}.remote", options.name)),
+            ],
+            Some(&root),
+        )?;
+        if has_upstream.exit_code != 0 {
+            let _ = git(
                 [
-                    OsString::from("config"),
-                    OsString::from(format!("branch.{}.remote", options.name)),
+                    OsString::from("branch"),
+                    OsString::from(format!("--set-upstream-to={remote_ref}")),
+                    OsString::from(&options.name),
                 ],
                 Some(&root),
             )?;
-            if has_upstream.exit_code != 0 {
-                let _ = git(
-                    [
-                        OsString::from("branch"),
-                        OsString::from(format!("--set-upstream-to={remote_ref}")),
-                        OsString::from(&options.name),
-                    ],
-                    Some(&root),
-                )?;
-            }
         }
     }
 

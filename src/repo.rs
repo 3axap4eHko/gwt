@@ -125,16 +125,13 @@ pub fn find_gwt_root(start_dir: Option<&Path>) -> Option<PathBuf> {
         }
 
         let git_path = dir.join(".git");
-        if git_path.is_file() {
-            if let Ok(content) = fs::read_to_string(&git_path) {
-                if content.starts_with("gitdir:") {
-                    if let Some(parent) = dir.parent() {
-                        if parent.join(".bare").is_dir() {
-                            return Some(parent.to_path_buf());
-                        }
-                    }
-                }
-            }
+        if git_path.is_file()
+            && let Ok(content) = fs::read_to_string(&git_path)
+            && content.starts_with("gitdir:")
+            && let Some(parent) = dir.parent()
+            && parent.join(".bare").is_dir()
+        {
+            return Some(parent.to_path_buf());
         }
     }
 
@@ -196,7 +193,7 @@ pub fn get_worktrees(root: &Path) -> AppResult<Vec<Worktree>> {
         })
         .collect::<Vec<_>>();
 
-    worktrees.sort_by(|left, right| right.mtime.cmp(&left.mtime));
+    worktrees.sort_by_key(|worktree| std::cmp::Reverse(worktree.mtime));
     Ok(worktrees)
 }
 
@@ -271,10 +268,10 @@ pub fn detect_default_branch(root: &Path) -> AppResult<String> {
         }
     }
 
-    if let Some(branch) = git_string(root, ["config", "init.defaultBranch"])? {
-        if !branch.is_empty() {
-            return Ok(branch);
-        }
+    if let Some(branch) = git_string(root, ["config", "init.defaultBranch"])?
+        && !branch.is_empty()
+    {
+        return Ok(branch);
     }
 
     Ok("master".to_string())
@@ -342,16 +339,16 @@ fn extract_config_value(content: &str, section: &str, key: &str) -> Option<Strin
             continue;
         }
 
-        if let Some((candidate_key, candidate_value)) = trimmed.split_once('=') {
-            if candidate_key.trim() == key {
-                return Some(
-                    candidate_value
-                        .trim()
-                        .trim_matches('"')
-                        .trim_matches('\'')
-                        .to_string(),
-                );
-            }
+        if let Some((candidate_key, candidate_value)) = trimmed.split_once('=')
+            && candidate_key.trim() == key
+        {
+            return Some(
+                candidate_value
+                    .trim()
+                    .trim_matches('"')
+                    .trim_matches('\'')
+                    .to_string(),
+            );
         }
     }
 

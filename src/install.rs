@@ -158,14 +158,13 @@ pub fn run(args: &[std::ffi::OsString]) -> AppResult<()> {
     }
 
     println!("{}", actions.join("\n"));
-    if let Some(rc_path) = rc_path {
-        if actions
+    if let Some(rc_path) = rc_path
+        && actions
             .iter()
             .any(|action| action.contains("Added shell integration"))
-        {
-            println!();
-            println!("Restart your shell or run: source {}", rc_path.display());
-        }
+    {
+        println!();
+        println!("Restart your shell or run: source {}", rc_path.display());
     }
     Ok(())
 }

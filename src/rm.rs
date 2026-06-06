@@ -255,10 +255,10 @@ fn remove_candidate(
 fn check_safety(context: &SafetyContext, candidate: &RemovalCandidate) -> AppResult<Vec<String>> {
     let mut issues = Vec::new();
 
-    if let (Some(default_branch), Some(branch)) = (&context.default_branch, &candidate.branch) {
-        if branch == default_branch {
-            issues.push(format!("'{branch}' is the default branch"));
-        }
+    if let (Some(default_branch), Some(branch)) = (&context.default_branch, &candidate.branch)
+        && branch == default_branch
+    {
+        issues.push(format!("'{branch}' is the default branch"));
     }
 
     let status = git_in_worktree(&candidate.path, &["status", "--porcelain"])?;
@@ -287,24 +287,24 @@ fn check_safety(context: &SafetyContext, candidate: &RemovalCandidate) -> AppRes
 
         if ahead.exit_code != 0 {
             issues.push("Failed to check unpushed commits".to_string());
-        } else if let Ok(count) = ahead.stdout.trim().parse::<u64>() {
-            if count > 0 {
-                issues.push(format!(
-                    "{count} unpushed commit{}",
-                    if count > 1 { "s" } else { "" }
-                ));
-            }
+        } else if let Ok(count) = ahead.stdout.trim().parse::<u64>()
+            && count > 0
+        {
+            issues.push(format!(
+                "{count} unpushed commit{}",
+                if count > 1 { "s" } else { "" }
+            ));
         }
 
         if behind.exit_code != 0 {
             issues.push("Failed to check commits behind remote".to_string());
-        } else if let Ok(count) = behind.stdout.trim().parse::<u64>() {
-            if count > 0 {
-                issues.push(format!(
-                    "{count} commit{} behind remote",
-                    if count > 1 { "s" } else { "" }
-                ));
-            }
+        } else if let Ok(count) = behind.stdout.trim().parse::<u64>()
+            && count > 0
+        {
+            issues.push(format!(
+                "{count} commit{} behind remote",
+                if count > 1 { "s" } else { "" }
+            ));
         }
     } else {
         issues.push(format!("Branch '{branch}' not pushed to remote"));
@@ -419,10 +419,10 @@ fn try_delete_branch(
     let Some(name) = branch else {
         return Ok(None);
     };
-    if let Some(default_branch) = default_branch {
-        if name == default_branch {
-            return Ok(None);
-        }
+    if let Some(default_branch) = default_branch
+        && name == default_branch
+    {
+        return Ok(None);
     }
 
     let flag = if force { "-D" } else { "-d" };

@@ -128,7 +128,7 @@ gwt add quick-fix -n            # Skip fetching remotes
 gwt add feature-login --cache   # Create and link cache entries
 ```
 
-### `gwt cache [unlink|prune [--apply]]`
+### `gwt cache [unlink|prune]`
 
 Link configured worktree targets to content-addressed cache directories. Each cache key is calculated from the configured input files, and the target is symlinked to `.gwt/cache/<hash>`. Input and target paths must stay inside the worktree; nested targets such as `apps/web/node_modules` are supported.
 
@@ -144,8 +144,7 @@ git config gwt.cache.node_modules.target node_modules
 gwt cache                 # Create/link configured cache targets
 npm ci                    # Populate node_modules through the symlink
 gwt cache unlink          # Restore configured targets from cache
-gwt cache prune           # Show disconnected cache directories
-gwt cache prune --apply   # Remove disconnected cache directories
+gwt cache prune           # Remove disconnected cache directories
 ```
 
 On a cache miss, `gwt cache` creates an empty cache directory when the target is missing, then symlinks the target to it. If configured input files change while the target is still linked, gwt does not move the target to a new cache key automatically; unlink or rebuild the target explicitly when changing cache inputs.
