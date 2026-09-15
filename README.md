@@ -151,7 +151,9 @@ On a cache miss, `gwt cache` creates an empty cache directory when the target is
 
 ### `gwt rm <name...> [-f, --force] [-n, --no-fetch]`
 
-Remove one or more worktrees. By default, fetches all remotes, then checks for uncommitted changes and unpushed commits. Use `--no-fetch` to use local refs without fetching first. When removing multiple worktrees, continues past failures and reports a summary.
+Remove one or more worktrees. By default, fetches the configured default branch from `origin`, then requires a clean worktree and a branch tip contained in that fetched history. The target branch need not exist on the remote. Default-branch and detached-HEAD worktrees remain protected. Squash merges do not preserve commit ancestry; use `--force` to override safety checks when needed. Use `--no-fetch` to check against the cached remote default branch without fetching first. When removing multiple worktrees, continues past safety-check or removal failures and reports a summary.
+
+If the branch changes after validation, its deletion is refused and the command reports a failure. The worktree may already have been removed; the updated branch is retained.
 
 ```bash
 gwt rm feature-done
