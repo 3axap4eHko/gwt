@@ -156,6 +156,12 @@ pub fn ensure_gwt_setup() -> AppResult<PathBuf> {
     })?;
     if config.version.is_none() {
         Err("Error: Found .bare but not gwt-managed. Run 'gwt init' to set up.".to_string())
+    } else if config
+        .default_branch
+        .as_deref()
+        .is_none_or(|branch| branch.trim().is_empty())
+    {
+        Err("Error: Default branch is not configured. Set 'gwt.defaultBranch' in the repository Git config.".to_string())
     } else {
         Ok(root)
     }
